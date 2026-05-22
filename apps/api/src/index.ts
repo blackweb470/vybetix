@@ -12,6 +12,7 @@ import paymentsRoutes from './modules/payments/payments.routes';
 import scannerRoutes from './modules/scanner/scanner.routes';
 import organizerRoutes from './modules/organizer/organizer.routes';
 import adminRoutes from './modules/admin/admin.routes';
+import whatsappRoutes from './modules/whatsapp/whatsapp.routes';
 import { initCronJobs } from './services/cron';
 
 // Load environment variables
@@ -55,6 +56,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/scanner', scannerRoutes);
 app.use('/api/organizer', organizerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Server check
 app.get('/', (req: Request, res: Response) => {
