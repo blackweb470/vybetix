@@ -8,12 +8,13 @@ import { RefreshCw } from 'lucide-react';
 interface QRDisplayProps {
   ticketId: string;
   staticToken: string;
+  onExpire?: () => void;
 }
 
 /**
  * Premium secure QR code display that animates a rotating 30s circular countdown.
  */
-export default function QRDisplay({ ticketId, staticToken }: QRDisplayProps) {
+export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplayProps) {
   const [timeLeft, setTimeLeft] = useState(60);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -24,6 +25,9 @@ export default function QRDisplay({ ticketId, staticToken }: QRDisplayProps) {
         if (prev <= 1) {
           // Reset the timer and play refresh pulse
           setRefreshTrigger((r) => r + 1);
+          if (onExpire) {
+            onExpire();
+          }
           return 60;
         }
         return prev - 1;
@@ -31,7 +35,7 @@ export default function QRDisplay({ ticketId, staticToken }: QRDisplayProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [onExpire]);
 
   const progressPercentage = (timeLeft / 60) * 100;
   

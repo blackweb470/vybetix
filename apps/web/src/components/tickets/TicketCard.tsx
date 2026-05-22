@@ -215,7 +215,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
         {/* Dynamic rotating QR overlay */}
         {showQR && ticket.status === 'active' && !ticket.is_device_mismatch && ticket.qr_token && (
           <div className="border-t border-zinc-850 pt-4 animate-in fade-in-40 duration-300">
-            <QRDisplay ticketId={ticket.id} staticToken={ticket.qr_token} />
+            <QRDisplay ticketId={ticket.id} staticToken={ticket.qr_token} onExpire={() => setShowQR(false)} />
           </div>
         )}
 

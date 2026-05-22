@@ -14,6 +14,7 @@ interface ScanStats {
 }
 interface ScanResponse {
   status: 'VALID' | 'ALREADY_USED' | 'CANCELLED' | 'INVALID';
+  is_re_entry?: boolean;
   holder_name?: string; tier_name?: string; event_title?: string; message?: string;
 }
 
@@ -68,9 +69,14 @@ export default function GateScannerPage() {
       if (res.data?.success) {
         const payload: ScanResponse = res.data.data;
         setScanResult(payload);
-        if (payload.status === 'VALID') toast({ title: '✅ Access Granted!', description: `${payload.holder_name} — ${payload.tier_name}`, variant: 'success' });
-        else if (payload.status === 'ALREADY_USED') toast({ title: '⚠️ Already Scanned', description: 'Duplicate entry attempt detected', variant: 'destructive' });
-        else toast({ title: '❌ Fake / Invalid QR', description: payload.message || 'Cryptographic signature mismatch — deny entry', variant: 'destructive' });
+        if (payload.status === 'VALID') {
+          const title = payload.is_re_entry ? '🔄 Re-entry Granted!' : '✅ Access Granted!';
+          toast({ title, description: `${payload.holder_name} — ${payload.tier_name}`, variant: 'success' });
+        } else if (payload.status === 'ALREADY_USED') {
+          toast({ title: '⚠️ Already Scanned', description: 'Duplicate entry attempt detected', variant: 'destructive' });
+        } else {
+          toast({ title: '❌ Fake / Invalid QR', description: payload.message || 'Cryptographic signature mismatch — deny entry', variant: 'destructive' });
+        }
         fetchStats();
       }
     } catch (err: any) {
@@ -214,8 +220,14 @@ export default function GateScannerPage() {
                     {scanResult.status === 'VALID' && (
                       <div className="p-5 rounded-2xl bg-emerald-950/25 border border-emerald-600/30 flex flex-col gap-3">
                         <div className="flex items-center gap-2">
-                          <ShieldCheck className="h-6 w-6 text-emerald-400" />
-                          <span className="text-sm font-black text-emerald-400 uppercase tracking-widest">Access Granted</span>
+                          {scanResult.is_re_entry ? (
+                            <RefreshCw className="h-5 w-5 text-emerald-400 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="h-6 w-6 text-emerald-400" />
+                          )}
+                          <span className="text-sm font-black text-emerald-400 uppercase tracking-widest">
+                            {scanResult.is_re_entry ? 'Access Granted (Re-entry)' : 'Access Granted'}
+                          </span>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           {[['Holder', scanResult.holder_name], ['Tier', scanResult.tier_name], ['Event', scanResult.event_title]].map(([lbl, val]) => val && (

@@ -61,16 +61,7 @@ export const scannerController = {
       }
 
       // 4. Check status constraints
-      if (ticket.status === 'used') {
-        return res.status(200).json({
-          success: true,
-          data: {
-            status: 'ALREADY_USED',
-            scanned_at: ticket.scanned_at,
-            holder_name: ticket.holder_name
-          }
-        });
-      }
+      const isReEntry = ticket.status === 'used';
 
       if (ticket.status === 'cancelled') {
         return res.status(200).json({
@@ -100,6 +91,7 @@ export const scannerController = {
         success: true,
         data: {
           status: 'VALID',
+          is_re_entry: isReEntry,
           holder_name: ticket.holder_name,
           tier_name: ticket.ticket_tiers.name,
           event_title: ticket.ticket_tiers.events.title
