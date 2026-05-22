@@ -135,7 +135,7 @@ export default function Navbar() {
               </div>
             </DropdownMenu>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3">
               <Link href="/login">
                 <Button variant="ghost" size="sm">
                   Log In
@@ -149,21 +149,23 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900 hover:text-white md:hidden focus:outline-none transition-colors duration-200"
-            aria-label="Toggle Menu"
-          >
-            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          {/* Mobile Menu Button (Only for guest users) */}
+          {!isAuthenticated && (
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900 hover:text-white md:hidden focus:outline-none transition-colors duration-200"
+              aria-label="Toggle Menu"
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          )}
         </div>
 
       </div>
 
       {/* Mobile Menu Panel */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden border-b border-zinc-800 bg-[#0D0D0D]/95 backdrop-blur-md px-6 py-4 flex flex-col gap-4 font-outfit animate-in fade-in slide-in-from-top-4 duration-200">
+      {isMobileMenuOpen && !isAuthenticated && (
+        <div className="md:hidden border-b border-zinc-800 bg-[#0D0D0D]/95 backdrop-blur-md px-6 py-5 flex flex-col gap-4 font-outfit animate-in fade-in slide-in-from-top-4 duration-200">
           <Link
             href="/events"
             onClick={() => setIsMobileMenuOpen(false)}
@@ -178,6 +180,20 @@ export default function Navbar() {
           >
             Campus Hub
           </Link>
+
+          {/* Mobile Login / Sign Up Actions */}
+          <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/80 mt-2">
+            <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full text-center uppercase tracking-widest text-[10px] h-11 border border-zinc-800 hover:bg-zinc-900">
+                Log In
+              </Button>
+            </Link>
+            <Link href="/register" onClick={() => setIsMobileMenuOpen(false)}>
+              <Button className="w-full text-center uppercase tracking-widest text-[10px] h-11">
+                Get Started
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
     </header>
