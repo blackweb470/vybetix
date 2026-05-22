@@ -1,17 +1,18 @@
 'use client'; // Client entrypoint helper for Next.js
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/button';
 import { Avatar } from '../ui/avatar';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
-import { Ticket, LayoutDashboard, User, LogOut, ChevronDown } from 'lucide-react';
+import { Ticket, LayoutDashboard, User, LogOut, ChevronDown, Menu, X } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '../../lib/utils';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-[#0D0D0D]/90 backdrop-blur-md">
@@ -147,9 +148,38 @@ export default function Navbar() {
               </Link>
             </div>
           )}
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900 hover:text-white md:hidden focus:outline-none transition-colors duration-200"
+            aria-label="Toggle Menu"
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
 
       </div>
+
+      {/* Mobile Menu Panel */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-b border-zinc-800 bg-[#0D0D0D]/95 backdrop-blur-md px-6 py-4 flex flex-col gap-4 font-outfit animate-in fade-in slide-in-from-top-4 duration-200">
+          <Link
+            href="/events"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="text-sm font-semibold uppercase tracking-wider text-zinc-400 hover:text-[#E8441A] transition-colors duration-200 py-2 border-b border-zinc-900/50"
+          >
+            Explore Events
+          </Link>
+          <Link
+            href="/universities"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="text-sm font-semibold uppercase tracking-wider text-zinc-400 hover:text-[#E8441A] transition-colors duration-200 py-2"
+          >
+            Campus Hub
+          </Link>
+        </div>
+      )}
     </header>
   );
 }

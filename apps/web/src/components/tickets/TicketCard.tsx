@@ -9,6 +9,21 @@ import { BuyerTicket } from '../../types';
 import { formatDate, formatNaira } from '../../lib/utils';
 import { Calendar, MapPin, QrCode, User, CreditCard, ShieldAlert } from 'lucide-react';
 
+// Helper utilities to encode/decode credential IDs for localStorage
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const binary = String.fromCharCode(...new Uint8Array(buffer));
+  return window.btoa(binary);
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 interface TicketCardProps {
   ticket: BuyerTicket;
 }
@@ -29,6 +44,9 @@ export default function TicketCard({ ticket }: TicketCardProps) {
       return;
     }
 
+    const credKey = `tixwave_cred_${ticket.id}`;
+    let storedCredId = localStorage.getItem(credKey);
+
     setIsAuthenticating(true);
     try {
       // Check if the platform supports biometric/user-verifying authenticators
@@ -39,33 +57,74 @@ export default function TicketCard({ ticket }: TicketCardProps) {
         return;
       }
 
-      // Single consistent challenge — just trigger the OS biometric prompt
-      // This does NOT create a passkey. It only verifies the user is physically present.
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
-      const result = await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          rpId: window.location.hostname,
-          userVerification: 'required',
-          timeout: 60000,
-          allowCredentials: [], // Empty = let the device pick any platform credential (fingerprint/Face ID)
-        },
-      } as CredentialRequestOptions);
+      if (!storedCredId) {
+        // Deterministic 16-byte user ID for registration
+        const userIdBytes = new Uint8Array(16);
+        const ticketIdClean = ticket.id.replace(/-/g, '');
+        for (let i = 0; i < 16; i++) {
+          userIdBytes[i] = ticketIdClean.charCodeAt(i % ticketIdClean.length) || 0;
+        }
 
-      if (result) {
-        setShowQR(true);
+        // Register a new local (non-resident) platform credential
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge,
+            rp: { name: 'Vybetix', id: window.location.hostname },
+            user: {
+              id: userIdBytes,
+              name: ticket.holder_name,
+              displayName: ticket.holder_name,
+            },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }], // ES256
+            authenticatorSelection: {
+              authenticatorAttachment: 'platform',
+              userVerification: 'required',
+              requireResidentKey: false,
+            },
+            timeout: 60000,
+          },
+        } as CredentialCreationOptions) as PublicKeyCredential;
+
+        if (credential) {
+          storedCredId = arrayBufferToBase64(credential.rawId);
+          localStorage.setItem(credKey, storedCredId);
+          setShowQR(true);
+        }
+      } else {
+        // Authenticate using the stored credential ID (re-use the same credential)
+        const result = await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            rpId: window.location.hostname,
+            userVerification: 'required',
+            timeout: 60000,
+            allowCredentials: [
+              {
+                id: base64ToArrayBuffer(storedCredId),
+                type: 'public-key',
+              },
+            ],
+          },
+        } as CredentialRequestOptions);
+
+        if (result) {
+          setShowQR(true);
+        }
       }
     } catch (error: any) {
-      // NotAllowedError = user cancelled the biometric prompt — don't show error, just stay locked
       if (error?.name === 'NotAllowedError') {
         console.log('Biometric prompt cancelled by user');
         return;
       }
-      // InvalidStateError or NotSupportedError = no registered credential, just reveal directly
-      // (This handles cases where the user has no passkey or fingerprint enrolled)
-      console.warn('Biometric check skipped:', error?.name, '— showing QR directly');
+      // If verification fails or is invalid (e.g. credential was reset/deleted),
+      // we remove the invalid stored ID so we attempt to register a new one next time
+      if (storedCredId) {
+        localStorage.removeItem(credKey);
+      }
+      console.warn('Biometric check skipped/failed:', error?.name, '— showing QR directly');
       setShowQR(true);
     } finally {
       setIsAuthenticating(false);
