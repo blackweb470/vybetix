@@ -45,10 +45,17 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear token and user storage, booting expired sessions back to home
-      useAuthStore.getState().clearAuth();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = `/login?expired=true&redirect=${encodeURIComponent(window.location.pathname)}`;
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        // Do NOT auto-logout on scanner pages — the scan might have failed for other reasons.
+        // Organizers should never be silently logged out mid-event.
+        const isScannerPage = currentPath.startsWith('/scan/');
+        if (!isScannerPage) {
+          useAuthStore.getState().clearAuth();
+          if (!currentPath.startsWith('/login')) {
+            window.location.href = `/login?expired=true&redirect=${encodeURIComponent(currentPath)}`;
+          }
+        }
       }
     }
     return Promise.reject(error);

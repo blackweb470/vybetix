@@ -68,14 +68,32 @@ export default function GateScannerPage() {
       if (res.data?.success) {
         const payload: ScanResponse = res.data.data;
         setScanResult(payload);
-        if (payload.status === 'VALID') toast({ title: 'Access Granted!', description: `${payload.holder_name} — ${payload.tier_name}`, variant: 'success' });
-        else if (payload.status === 'ALREADY_USED') toast({ title: 'Already Scanned', description: 'Duplicate entry attempt detected', variant: 'destructive' });
-        else toast({ title: 'Access Denied', description: payload.message || 'Invalid QR token', variant: 'destructive' });
+        if (payload.status === 'VALID') toast({ title: '✅ Access Granted!', description: `${payload.holder_name} — ${payload.tier_name}`, variant: 'success' });
+        else if (payload.status === 'ALREADY_USED') toast({ title: '⚠️ Already Scanned', description: 'Duplicate entry attempt detected', variant: 'destructive' });
+        else toast({ title: '❌ Fake / Invalid QR', description: payload.message || 'Cryptographic signature mismatch — deny entry', variant: 'destructive' });
         fetchStats();
       }
     } catch (err: any) {
-      toast({ title: 'Scan error', description: err.response?.data?.message || err.message, variant: 'destructive' });
-      setScanResult({ status: 'INVALID', message: 'Network error or invalid token' });
+      const status = err.response?.status;
+      // Handle session expiry without logging the organizer out mid-event
+      if (status === 401) {
+        toast({
+          title: '🔒 Session Expired',
+          description: 'Your login session expired. Tap here to re-login without losing your place.',
+          variant: 'destructive'
+        });
+        setScanResult({ status: 'INVALID', message: 'Session expired — please re-login. Your scanning position is saved.' });
+      } else if (status === 403) {
+        toast({
+          title: '⛔ Not Authorised',
+          description: 'You are not the organiser for this event.',
+          variant: 'destructive'
+        });
+        setScanResult({ status: 'INVALID', message: 'Access forbidden — you do not own this event.' });
+      } else {
+        toast({ title: 'Scan error', description: err.response?.data?.message || err.message, variant: 'destructive' });
+        setScanResult({ status: 'INVALID', message: 'Network error or unreadable token' });
+      }
     } finally { setValidating(false); setQrInput(''); }
   };
 

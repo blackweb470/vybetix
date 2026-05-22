@@ -130,6 +130,9 @@ function LoginContent() {
               <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Email Address</label>
               <input
                 type="email"
+                id="vybetix-login-email"
+                name="email"
+                autoComplete="username"
                 placeholder="you@example.com"
                 required
                 value={email}
@@ -142,6 +145,9 @@ function LoginContent() {
               <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Password</label>
               <input
                 type="password"
+                id="vybetix-login-password"
+                name="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 required
                 value={password}

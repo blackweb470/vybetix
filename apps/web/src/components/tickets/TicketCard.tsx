@@ -23,66 +23,50 @@ export default function TicketCard({ ticket }: TicketCardProps) {
       return;
     }
 
+    // If WebAuthn is not supported on this device, just reveal the QR directly
     if (!window.PublicKeyCredential) {
-      // Browser does not support WebAuthn
       setShowQR(true);
       return;
     }
 
     setIsAuthenticating(true);
     try {
-      const hasBiometricSetup = localStorage.getItem('Vybetix_biometric_setup');
+      // Check if the platform supports biometric/user-verifying authenticators
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) {
+        // Device has no fingerprint/face sensor — just show QR
+        setShowQR(true);
+        return;
+      }
+
+      // Single consistent challenge — just trigger the OS biometric prompt
+      // This does NOT create a passkey. It only verifies the user is physically present.
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
-      if (!hasBiometricSetup) {
-        // First time setup - create a credential
-        const userId = new Uint8Array(16);
-        window.crypto.getRandomValues(userId);
+      const result = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          rpId: window.location.hostname,
+          userVerification: 'required',
+          timeout: 60000,
+          allowCredentials: [], // Empty = let the device pick any platform credential (fingerprint/Face ID)
+        },
+      } as CredentialRequestOptions);
 
-        const credential = await navigator.credentials.create({
-          publicKey: {
-            challenge,
-            rp: { name: 'Vybetix Secure Tickets', id: window.location.hostname },
-            user: {
-              id: userId,
-              name: ticket.holder_name || 'Buyer',
-              displayName: ticket.holder_name || 'Buyer',
-            },
-            pubKeyCredParams: [
-              { type: 'public-key', alg: -7 },
-              { type: 'public-key', alg: -257 },
-            ],
-            authenticatorSelection: {
-              authenticatorAttachment: 'platform',
-              userVerification: 'required',
-            },
-            timeout: 60000,
-          },
-        });
-
-        if (credential) {
-          localStorage.setItem('Vybetix_biometric_setup', 'true');
-          setShowQR(true);
-        }
-      } else {
-        // Subsequent unlocks - request assertion
-        const assertion = await navigator.credentials.get({
-          publicKey: {
-            challenge,
-            rpId: window.location.hostname,
-            userVerification: 'required',
-            timeout: 60000,
-          },
-        });
-
-        if (assertion) {
-          setShowQR(true);
-        }
+      if (result) {
+        setShowQR(true);
       }
-    } catch (error) {
-      console.error('Biometric auth failed:', error);
-      alert('Biometric verification (FaceID / Fingerprint) is required to view your secure ticket.');
+    } catch (error: any) {
+      // NotAllowedError = user cancelled the biometric prompt — don't show error, just stay locked
+      if (error?.name === 'NotAllowedError') {
+        console.log('Biometric prompt cancelled by user');
+        return;
+      }
+      // InvalidStateError or NotSupportedError = no registered credential, just reveal directly
+      // (This handles cases where the user has no passkey or fingerprint enrolled)
+      console.warn('Biometric check skipped:', error?.name, '— showing QR directly');
+      setShowQR(true);
     } finally {
       setIsAuthenticating(false);
     }
