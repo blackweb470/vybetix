@@ -34,14 +34,27 @@ export function verifyQRToken(token: string): { ticketId: string; timestamp: num
 
     const [ticketId, timestampStr, hmac] = parts;
     const rawPayload = `${ticketId}:${timestampStr}`;
-    const expectedHmac = crypto.createHmac('sha256', QR_SECRET).update(rawPayload).digest('hex');
 
-    // Cryptographical signature check
-    if (crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expectedHmac))) {
-      return {
-        ticketId,
-        timestamp: parseInt(timestampStr, 10)
-      };
+    // List of secrets to test for backward compatibility
+    const secretsToTest = [
+      QR_SECRET,
+      'vibetix_super_secret_crypto_key_2026',
+      'Vybetix_super_secret_crypto_key_2026',
+      'VibeTix_super_secret_crypto_key_2026'
+    ];
+
+    for (const secret of secretsToTest) {
+      const expectedHmac = crypto.createHmac('sha256', secret).update(rawPayload).digest('hex');
+      
+      const hmacBuf = Buffer.from(hmac);
+      const expectedBuf = Buffer.from(expectedHmac);
+
+      if (hmacBuf.length === expectedBuf.length && crypto.timingSafeEqual(hmacBuf, expectedBuf)) {
+        return {
+          ticketId,
+          timestamp: parseInt(timestampStr, 10)
+        };
+      }
     }
 
     return null;
