@@ -135,6 +135,12 @@ export default function GateScannerPage() {
                           validateToken(result[0].rawValue);
                         }
                       }}
+                      onError={(err) => {
+                        console.error('QR Scanner error:', err);
+                      }}
+                      constraints={{
+                        facingMode: 'environment'
+                      }}
                       paused={validating}
                     />
                     {validating && (

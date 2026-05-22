@@ -47,15 +47,12 @@ export default function QRDisplay({ ticketId, staticToken }: QRDisplayProps) {
       <div className="relative p-5 rounded-2xl bg-white border-4 border-[#E8441A] shadow-2xl transition-all duration-300">
         <QRCodeSVG
           value={visiblePayload}
-          size={200}
-          level="H"
+          size={220}
+          level="M"
           fgColor="#000000"
           bgColor="#FFFFFF"
           includeMargin={false}
         />
-        
-        {/* Visual Scan laser line animation */}
-        <div className="absolute left-0 right-0 h-1 bg-[#E8441A]/60 shadow-lg shadow-[#E8441A]/55 top-1/2 animate-pulse" />
       </div>
 
       {/* 2. Interactive Timer Progress indicator */}
