@@ -21,7 +21,7 @@ const outfitFont = Outfit({
 
 export const metadata: Metadata = {
   title: 'Vybetix - Nigeria\'s Smartest Event Ticketing Platform',
-  description: 'Discover and buy tickets for live concerts, campus shows, festivals, and more across Nigeria. Every ticket is HMAC-sealed and fraud-proof.'},
+  description: 'Discover and buy tickets for live concerts, campus shows, festivals, and more across Nigeria. Every ticket is HMAC-sealed and fraud-proof.',
 };
 
 export default function RootLayout({

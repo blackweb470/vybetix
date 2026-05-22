@@ -1,4 +1,4 @@
-export * from '@Vybetix/shared';
+export * from '@vibetix/shared';
 
 // Additional frontend types representing the actual database schemas and filters
 export interface University {
