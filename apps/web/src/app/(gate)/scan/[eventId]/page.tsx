@@ -6,6 +6,7 @@ import { useToast } from '../../../../components/ui/toast';
 import { api } from '../../../../lib/api';
 import { QrCode, ShieldCheck, ShieldAlert, ArrowLeft, Disc, Activity, RefreshCw, Camera, Keyboard } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { useAuthStore } from '../../../../store/authStore';
 
 interface ScanStats {
   eventTitle: string; totalSold: number; totalScanned: number;
@@ -29,6 +30,8 @@ export default function GateScannerPage() {
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [scanMode, setScanMode] = useState<'camera' | 'manual'>('camera');
 
+  const { user, token } = useAuthStore();
+
   const fetchStats = async () => {
     try {
       setStatsLoading(true);
@@ -39,7 +42,21 @@ export default function GateScannerPage() {
     } finally { setStatsLoading(false); }
   };
 
-  useEffect(() => { fetchStats(); }, [eventId]);
+  useEffect(() => {
+    if (!token || !user) {
+      toast({ title: 'Authentication required', description: 'Please log in to access the ticket scanning console.', variant: 'destructive' });
+      router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    if (user.role !== 'organizer' && user.role !== 'admin') {
+      toast({ title: 'Access Denied', description: 'Only organizers and admins can access the scanner console', variant: 'destructive' });
+      router.push('/dashboard');
+      return;
+    }
+
+    fetchStats();
+  }, [eventId, token, user]);
 
   const validateToken = async (token: string) => {
     if (!token) { toast({ title: 'Token required', variant: 'destructive' }); return; }
