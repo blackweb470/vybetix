@@ -12,3 +12,4 @@ router.get('/attendees/:eventId', authMiddleware, requireRole(['organizer', 'adm
 router.post('/payout', authMiddleware, requireRole(['organizer', 'admin']), organizerController.requestPayout);
 
 export default router;
+

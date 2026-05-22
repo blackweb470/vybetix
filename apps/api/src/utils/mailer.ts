@@ -49,21 +49,21 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Your VibeTix Tickets</title>
+      <title>Your Vybetix Tickets</title>
     </head>
     <body style="background-color: #0b0b0f; color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px 20px; margin: 0;">
       <div style="max-width: 600px; margin: 0 auto; background-color: #12121a; border-radius: 16px; border: 1px solid #27272a; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
         
         <!-- Header Banner -->
         <div style="background: linear-gradient(135deg, #1e1b4b 0%, #311042 100%); padding: 30px 40px; text-align: center; border-bottom: 1px solid #27272a;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff;">⚡️ VIBETIX</h1>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff;">⚡️ Vybetix</h1>
           <p style="margin: 5px 0 0 0; font-size: 14px; color: #a5f3fc; font-weight: 500; text-transform: uppercase; letter-spacing: 2px;">Your Tickets Are Ready!</p>
         </div>
 
         <!-- Body -->
         <div style="padding: 40px;">
           <h2 style="margin-top: 0; font-size: 20px; font-weight: 700; color: #ffffff;">Hey ${holderName},</h2>
-          <p style="line-height: 1.6; color: #a3a3a3; font-size: 15px;">Your payment has been successfully processed! We have secured your spot for the event. Below you will find your ticket breakdown. In order to protect your ticket against unauthorized access and duplication, your secure ticket is bound to your physical device. Please log into the VibeTix app on your mobile device/browser to securely view your QR code for gate entry.</p>
+          <p style="line-height: 1.6; color: #a3a3a3; font-size: 15px;">Your payment has been successfully processed! We have secured your spot for the event. Below you will find your ticket breakdown. In order to protect your ticket against unauthorized access and duplication, your secure ticket is bound to your physical device. Please log into the Vybetix app on your mobile device/browser to securely view your QR code for gate entry.</p>
 
           <!-- Event Summary Card -->
           <div style="margin: 30px 0; background-color: #1a1a24; border-radius: 12px; border: 1px solid #2d2d3d; padding: 20px;">
@@ -97,8 +97,8 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
 
         <!-- Footer -->
         <div style="background-color: #0d0d12; padding: 20px 40px; text-align: center; border-top: 1px solid #27272a; font-size: 12px; color: #52525b;">
-          <p style="margin: 0;">&copy; 2026 VibeTix Platforms Ltd. All rights reserved.</p>
-          <p style="margin: 5px 0 0 0;">Lagos & Abuja, Nigeria • Support: <a href="mailto:support@vibetix.ng" style="color: #3b82f6; text-decoration: none;">support@vibetix.ng</a></p>
+          <p style="margin: 0;">&copy; 2026 Vybetix Platforms Ltd. All rights reserved.</p>
+          <p style="margin: 5px 0 0 0;">Lagos & Abuja, Nigeria • Support: <a href="mailto:support@Vybetix.ng" style="color: #3b82f6; text-decoration: none;">support@Vybetix.ng</a></p>
         </div>
 
       </div>
@@ -114,7 +114,7 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
       const base64Data = t.qrImageBase64!.replace(/^data:image\/png;base64,/, '');
       
       return {
-        filename: `vibetix-ticket-${index + 1}-${t.tierName.toLowerCase().replace(/\s+/g, '-')}.png`,
+        filename: `Vybetix-ticket-${index + 1}-${t.tierName.toLowerCase().replace(/\s+/g, '-')}.png`,
         content: Buffer.from(base64Data, 'base64')
       };
     });
@@ -127,7 +127,7 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
     }
 
     const response = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'VibeTix <tickets@vibetix.ng>',
+      from: process.env.RESEND_FROM_EMAIL || 'Vybetix <tickets@Vybetix.ng>',
       to: [email],
       subject: `⚡️ Your tickets for ${eventTitle} are ready!`,
       html: emailHtml,
@@ -173,9 +173,10 @@ export async function sendEventReminderEmail(
   }
 
   return await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || 'VibeTix <tickets@vibetix.ng>',
+    from: process.env.RESEND_FROM_EMAIL || 'Vybetix <tickets@Vybetix.ng>',
     to: [email],
     subject: `⏰ Reminder: ${eventTitle} is tomorrow!`,
     html: emailHtml
   });
 }
+

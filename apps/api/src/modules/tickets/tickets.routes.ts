@@ -15,3 +15,4 @@ router.get('/decode', authMiddleware, requireRole(['organizer', 'admin']), ticke
 router.post('/validate', authMiddleware, requireRole(['organizer', 'admin']), ticketsController.validateTicket);
 
 export default router;
+

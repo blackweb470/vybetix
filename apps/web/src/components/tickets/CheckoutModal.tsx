@@ -299,3 +299,4 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
     </Dialog>
   );
 }
+

@@ -62,7 +62,7 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.get('/', (req: Request, res: Response) => {
   res.json({
     success: true,
-    message: '⚡️ VibeTix High-Performance Backend API is active and running!',
+    message: '⚡️ Vybetix High-Performance Backend API is active and running!',
     timestamp: new Date().toISOString()
   });
 });
@@ -90,7 +90,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Boot listening socket
 app.listen(PORT, () => {
-  console.log(`⚡️[server]: VibeTix API is listening at http://localhost:${PORT}`);
+  console.log(`⚡️[server]: Vybetix API is listening at http://localhost:${PORT}`);
   initCronJobs();
 });
 export default app;
+

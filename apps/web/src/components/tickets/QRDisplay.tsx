@@ -107,3 +107,4 @@ export default function QRDisplay({ ticketId, staticToken }: QRDisplayProps) {
     </div>
   );
 }
+

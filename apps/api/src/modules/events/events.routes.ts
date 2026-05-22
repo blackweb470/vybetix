@@ -34,3 +34,4 @@ router.delete('/:id', authMiddleware, requireRole(['organizer', 'admin']), event
 router.get('/:id', eventsController.getById);
 
 export default router;
+

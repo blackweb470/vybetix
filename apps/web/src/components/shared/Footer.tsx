@@ -9,15 +9,15 @@ export default function Footer() {
         
         {/* Branding */}
         <div className="flex items-center gap-4">
-          <Image src="/logo.png" alt="VibeTix" width={80} height={80} />
+          <Image src="/logo.png" alt="Vybetix" width={80} height={80} />
           <span className="text-xl font-bold tracking-wider font-syne text-zinc-300">
-            VibeTix
+            Vybetix
           </span>
         </div>
 
         {/* copyright */}
         <p className="text-xs text-zinc-600">
-          &copy; {new Date().getFullYear()} VibeTix Platforms Ltd. All rights reserved.
+          &copy; {new Date().getFullYear()} Vybetix Platforms Ltd. All rights reserved.
         </p>
 
         {/* Links */}
@@ -34,3 +34,4 @@ export default function Footer() {
     </footer>
   );
 }
+

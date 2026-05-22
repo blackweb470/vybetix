@@ -20,8 +20,8 @@ const outfitFont = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'VibeTix - Cyber Premium Ticket Inventory Gateway',
-  description: 'Experience futuristic ticket bookings for festivals, sporting events, classical campus galas, and live concerts across Nigeria.',
+  title: 'Vybetix - Nigeria\'s Smartest Event Ticketing Platform',
+  description: 'Discover and buy tickets for live concerts, campus shows, festivals, and more across Nigeria. Every ticket is HMAC-sealed and fraud-proof.'},
 };
 
 export default function RootLayout({
@@ -45,3 +45,4 @@ export default function RootLayout({
     </html>
   );
 }
+

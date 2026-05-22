@@ -19,9 +19,9 @@ export default function Navbar() {
         
         {/* Visual Brand Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
-          <Image src="/logo.png" alt="VibeTix" width={80} height={80} className="group-hover:scale-110 transition-transform duration-300" />
+          <Image src="/logo.png" alt="Vybetix" width={80} height={80} className="group-hover:scale-110 transition-transform duration-300" />
           <span className="text-3xl font-extrabold tracking-tighter font-syne text-[#E8441A] transition-colors duration-300 group-hover:text-[#ff5a2f]">
-            VibeTix
+            Vybetix
           </span>
         </Link>
 
@@ -153,3 +153,4 @@ export default function Navbar() {
     </header>
   );
 }
+

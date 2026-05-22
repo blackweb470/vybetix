@@ -13,10 +13,10 @@ export const api = axios.create({
 // Helper to retrieve or lazily generate a persistent unique device fingerprint
 function getOrCreateDeviceFingerprint(): string {
   if (typeof window === 'undefined') return '';
-  let fingerprint = localStorage.getItem('vibetix_device_fingerprint');
+  let fingerprint = localStorage.getItem('Vybetix_device_fingerprint');
   if (!fingerprint) {
     fingerprint = 'dev-' + Math.random().toString(36).substring(2, 15) + '-' + Date.now().toString(36);
-    localStorage.setItem('vibetix_device_fingerprint', fingerprint);
+    localStorage.setItem('Vybetix_device_fingerprint', fingerprint);
   }
   return fingerprint;
 }
@@ -54,3 +54,4 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+

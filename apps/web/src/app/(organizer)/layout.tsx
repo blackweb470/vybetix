@@ -39,3 +39,4 @@ export default function OrganizerLayout({ children }: { children: React.ReactNod
 
   return <>{children}</>;
 }
+

@@ -44,3 +44,4 @@ export function openPaystackCheckout(options: PaystackCheckoutOptions) {
     alert('Failed to boot payment gateway. Please ensure your network connection is stable.');
   }
 }
+

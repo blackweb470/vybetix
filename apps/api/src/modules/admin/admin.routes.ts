@@ -12,3 +12,4 @@ router.get('/fraud', authMiddleware, requireRole(['admin']), adminController.get
 router.post('/resolve-flag', authMiddleware, requireRole(['admin']), adminController.resolveFlag);
 
 export default router;
+

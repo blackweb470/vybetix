@@ -16,3 +16,4 @@ router.get('/banks', paymentsController.getBanks);
 router.post('/resolve-account', paymentsController.resolveAccount);
 
 export default router;
+

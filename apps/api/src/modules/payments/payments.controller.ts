@@ -258,7 +258,7 @@ export const paymentsController = {
         .single();
 
       if (queryError || !order) {
-        return error(res, 'Order missing', 'No matching order details found in VibeTix registries', 404);
+        return error(res, 'Order missing', 'No matching order details found in Vybetix registries', 404);
       }
 
       // If order is already successful in our DB, return immediately
@@ -389,3 +389,4 @@ export const paymentsController = {
     }
   }
 };
+

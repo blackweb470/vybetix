@@ -139,8 +139,8 @@ function RegisterContent() {
         <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full bg-purple-700/8 blur-[120px] pointer-events-none" />
 
         <Link href="/" className="flex items-center gap-4 relative z-10 group w-fit">
-          <Image src="/logo.png" alt="VibeTix" width={128} height={128} />
-          <span className="text-5xl font-black tracking-tighter font-syne text-white group-hover:text-[#E8441A] transition-colors">VibeTix</span>
+          <Image src="/logo.png" alt="Vybetix" width={128} height={128} />
+          <span className="text-5xl font-black tracking-tighter font-syne text-white group-hover:text-[#E8441A] transition-colors">Vybetix</span>
         </Link>
 
         <div className="relative z-10 flex flex-col gap-5">
@@ -171,8 +171,8 @@ function RegisterContent() {
         <div className="w-full max-w-lg">
 
           <Link href="/" className="flex items-center gap-4 mb-8 lg:hidden group w-fit">
-            <Image src="/logo.png" alt="VibeTix" width={96} height={96} />
-            <span className="text-3xl font-black tracking-tighter font-syne text-white">VibeTix</span>
+            <Image src="/logo.png" alt="Vybetix" width={96} height={96} />
+            <span className="text-3xl font-black tracking-tighter font-syne text-white">Vybetix</span>
           </Link>
 
           <div className="mb-8">
@@ -301,3 +301,4 @@ export default function RegisterPage() {
     </Suspense>
   );
 }
+

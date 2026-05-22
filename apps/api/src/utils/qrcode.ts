@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const QR_SECRET = process.env.QR_SECRET || 'vibetix_super_secret_crypto_key_2026';
+const QR_SECRET = process.env.QR_SECRET || 'Vybetix_super_secret_crypto_key_2026';
 
 /**
  * Encodes a ticket's UUID with a timestamp and seals it using HMAC-SHA256.
@@ -67,3 +67,4 @@ export async function generateQRImage(token: string): Promise<string> {
     throw error;
   }
 }
+

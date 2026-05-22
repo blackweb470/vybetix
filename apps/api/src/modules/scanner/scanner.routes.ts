@@ -13,3 +13,4 @@ router.post('/scan/:qrToken', authMiddleware, requireRole(['organizer', 'admin']
 router.get('/stats/:eventId', authMiddleware, requireRole(['organizer', 'admin']), scannerController.getEventScanStats);
 
 export default router;
+

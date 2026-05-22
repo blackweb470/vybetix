@@ -29,7 +29,7 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => {
         set({ user: null, token: null });
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('vibetix-auth');
+          localStorage.removeItem('Vybetix-auth');
         }
       },
       updateUser: (updatedFields) =>
@@ -38,7 +38,8 @@ export const useAuthStore = create<AuthState>()(
         }))
     }),
     {
-      name: 'vibetix-auth'
+      name: 'Vybetix-auth'
     }
   )
 );
+

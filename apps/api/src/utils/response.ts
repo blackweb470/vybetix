@@ -21,3 +21,4 @@ export function error(res: Response, errorStr: string, message?: string, statusC
     message
   });
 }
+

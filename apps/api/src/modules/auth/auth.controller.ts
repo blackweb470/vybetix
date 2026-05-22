@@ -24,7 +24,7 @@ export const loginSchema = z.object({
 });
 
 /**
- * Controller managing VibeTix customer and organizer authentication.
+ * Controller managing Vybetix customer and organizer authentication.
  */
 export const authController = {
   /**
@@ -354,3 +354,4 @@ export const authController = {
     }
   }
 };
+

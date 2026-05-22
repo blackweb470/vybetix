@@ -12,3 +12,4 @@ router.get('/me', authMiddleware, authController.getCurrentUser);
 router.patch('/profile', authMiddleware, authController.updateProfile);
 
 export default router;
+

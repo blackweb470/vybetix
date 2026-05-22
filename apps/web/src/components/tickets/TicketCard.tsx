@@ -31,7 +31,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
 
     setIsAuthenticating(true);
     try {
-      const hasBiometricSetup = localStorage.getItem('vibetix_biometric_setup');
+      const hasBiometricSetup = localStorage.getItem('Vybetix_biometric_setup');
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
@@ -43,7 +43,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
         const credential = await navigator.credentials.create({
           publicKey: {
             challenge,
-            rp: { name: 'VibeTix Secure Tickets', id: window.location.hostname },
+            rp: { name: 'Vybetix Secure Tickets', id: window.location.hostname },
             user: {
               id: userId,
               name: ticket.holder_name || 'Buyer',
@@ -62,7 +62,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
         });
 
         if (credential) {
-          localStorage.setItem('vibetix_biometric_setup', 'true');
+          localStorage.setItem('Vybetix_biometric_setup', 'true');
           setShowQR(true);
         }
       } else {
@@ -215,3 +215,4 @@ export default function TicketCard({ ticket }: TicketCardProps) {
     </Card>
   );
 }
+

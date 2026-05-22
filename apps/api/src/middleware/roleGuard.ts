@@ -28,3 +28,4 @@ export const isBuyer = requireRole(['buyer']);
 export const isOrganizer = requireRole(['organizer']);
 export const isAdmin = requireRole(['admin']);
 export const isStaffOrAdmin = requireRole(['organizer', 'admin']);
+

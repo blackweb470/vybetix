@@ -118,3 +118,4 @@ export function initCronJobs() {
 
   console.log('[Cron] Automated jobs active.');
 }
+

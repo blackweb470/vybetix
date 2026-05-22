@@ -217,7 +217,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <div className="flex items-center gap-3.5 justify-center md:justify-start">
-                <h1 className="text-xl font-black font-syne text-white uppercase tracking-tight">{fullName || 'VibeTix User'}</h1>
+                <h1 className="text-xl font-black font-syne text-white uppercase tracking-tight">{fullName || 'Vybetix User'}</h1>
                 <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
                   me.role === 'organizer' 
                     ? 'bg-[#E8441A]/10 border-[#E8441A]/25 text-[#E8441A]' 
@@ -301,7 +301,7 @@ export default function ProfilePage() {
               <span className="text-[10px] font-black text-zinc-650 uppercase tracking-widest">Platform Security</span>
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-purple-400/80" />
-                <span className="text-xxs text-zinc-450">VibeTix Premium Auth Enabled</span>
+                <span className="text-xxs text-zinc-450">Vybetix Premium Auth Enabled</span>
               </div>
               <div className="flex items-center gap-2">
                 <Lock className="h-4 w-4 text-zinc-650" />
@@ -473,3 +473,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

@@ -60,8 +60,8 @@ function LoginContent() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-4 relative z-10 group w-fit">
-          <Image src="/logo.png" alt="VibeTix" width={128} height={128} />
-          <span className="text-5xl font-black tracking-tighter font-syne text-white group-hover:text-[#E8441A] transition-colors">VibeTix</span>
+          <Image src="/logo.png" alt="Vybetix" width={128} height={128} />
+          <span className="text-5xl font-black tracking-tighter font-syne text-white group-hover:text-[#E8441A] transition-colors">Vybetix</span>
         </Link>
 
         {/* Centre copy */}
@@ -115,8 +115,8 @@ function LoginContent() {
 
           {/* Mobile logo */}
           <Link href="/" className="flex items-center gap-4 mb-10 lg:hidden group w-fit">
-            <Image src="/logo.png" alt="VibeTix" width={96} height={96} />
-            <span className="text-3xl font-black tracking-tighter font-syne text-white">VibeTix</span>
+            <Image src="/logo.png" alt="Vybetix" width={96} height={96} />
+            <span className="text-3xl font-black tracking-tighter font-syne text-white">Vybetix</span>
           </Link>
 
           <div className="mb-8">
@@ -182,7 +182,7 @@ function LoginContent() {
           </form>
 
           <p className="mt-8 text-center text-[10px] text-zinc-600 leading-relaxed">
-            By continuing you agree to VibeTix's Terms of Service and acknowledge our Privacy Policy. All entry codes are cryptographically sealed.
+            By continuing you agree to Vybetix's Terms of Service and acknowledge our Privacy Policy. All entry codes are cryptographically sealed.
           </p>
         </div>
       </div>
@@ -202,3 +202,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+

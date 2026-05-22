@@ -73,3 +73,4 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     });
   }
 }
+

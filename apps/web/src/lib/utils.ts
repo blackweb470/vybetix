@@ -48,3 +48,4 @@ export function formatTime(dateString: string, pattern: string = 'hh:mm a'): str
     return dateString;
   }
 }
+

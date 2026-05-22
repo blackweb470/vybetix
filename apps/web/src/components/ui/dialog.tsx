@@ -72,3 +72,4 @@ export function Dialog({ isOpen, onClose, title, children, className }: DialogPr
     </div>
   );
 }
+
