@@ -8,10 +8,10 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 flex flex-col md:flex-row items-center justify-between gap-6">
         
         {/* Branding */}
-        <div className="flex items-center gap-4">
-          <Image src="/logo.png" alt="Vybetix" width={80} height={80} />
-          <span className="text-xl font-bold tracking-wider font-syne text-zinc-300">
-            Vybetix
+        <div className="flex items-center gap-3">
+          <Image src="/logo.png" alt="Vybetix" width={48} height={48} />
+          <span className="text-xl font-black tracking-wider font-syne text-zinc-300 uppercase mt-1">
+            VYBETIX
           </span>
         </div>
 

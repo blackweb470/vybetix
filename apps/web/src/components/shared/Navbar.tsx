@@ -19,10 +19,10 @@ export default function Navbar() {
       <div className="mx-auto flex h-24 max-w-7xl items-center justify-between px-6">
         
         {/* Visual Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <Image src="/logo.png" alt="Vybetix" width={80} height={80} className="group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-3xl font-extrabold tracking-tighter font-syne text-[#E8441A] transition-colors duration-300 group-hover:text-[#ff5a2f]">
-            Vybetix
+        <Link href="/" className="flex items-center gap-3 group">
+          <Image src="/logo.png" alt="Vybetix" width={56} height={56} className="group-hover:scale-105 transition-transform duration-300" />
+          <span className="text-2xl font-black tracking-tighter font-syne text-[#E8441A] transition-colors duration-300 group-hover:text-[#ff5a2f] uppercase mt-1">
+            VYBETIX
           </span>
         </Link>
 
