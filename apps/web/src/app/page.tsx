@@ -39,7 +39,13 @@ const getCategoryLabel = (category: string, customCategory?: string) => {
   return labels[category] || category;
 };
 
-const CITIES = ['Lagos', 'Abuja', 'Ibadan', 'Port Harcourt', 'Enugu'];
+const ALL_STATES = [
+  'Abia', 'Abuja FCT', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
+  'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'Gombe', 'Imo', 'Jigawa', 'Kaduna',
+  'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
+  'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'
+];
+const POPULAR_STATES = ['Lagos', 'Abuja FCT', 'Rivers', 'Kano', 'Oyo', 'Delta'];
 
 export default function LandingPage() {
   const [search, setSearch] = useState('');
@@ -110,7 +116,7 @@ export default function LandingPage() {
                 className="w-full bg-transparent border-none text-sm text-zinc-300 focus:outline-none focus:ring-0 py-3 appearance-none cursor-pointer"
               >
                 <option value="" className="bg-zinc-900 text-zinc-300">All Locations</option>
-                {CITIES.map(c => (
+                {ALL_STATES.map(c => (
                   <option key={c} value={c} className="bg-zinc-900 text-zinc-300">{c}</option>
                 ))}
               </select>
@@ -179,14 +185,14 @@ export default function LandingPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button 
+              <button
                 onClick={() => handleCitySelect(undefined)}
                 className={`px-3 py-1.5 rounded-lg text-xxs font-black uppercase tracking-widest transition-all ${!selectedCity ? 'bg-[#E8441A] text-white' : 'bg-zinc-900/60 border border-zinc-800 text-zinc-500 hover:text-zinc-200'}`}
               >
                 All
               </button>
-              {CITIES.map(c => (
-                <button 
+              {POPULAR_STATES.map(c => (
+                <button
                   key={c}
                   onClick={() => handleCitySelect(c)}
                   className={`px-3 py-1.5 rounded-lg text-xxs font-black uppercase tracking-widest transition-all ${selectedCity === c ? 'bg-[#E8441A] text-white' : 'bg-zinc-900/60 border border-zinc-800 text-zinc-500 hover:text-zinc-200'}`}
@@ -194,6 +200,21 @@ export default function LandingPage() {
                   {c}
                 </button>
               ))}
+              {/* More states dropdown */}
+              <select
+                value={selectedCity && !POPULAR_STATES.includes(selectedCity) ? selectedCity : ''}
+                onChange={(e) => e.target.value && handleCitySelect(e.target.value)}
+                className={`px-3 py-1.5 rounded-lg text-xxs font-black uppercase tracking-widest transition-all appearance-none cursor-pointer ${
+                  selectedCity && !POPULAR_STATES.includes(selectedCity)
+                    ? 'bg-[#E8441A] text-white border-transparent'
+                    : 'bg-zinc-900/60 border border-zinc-800 text-zinc-500 hover:text-zinc-200'
+                }`}
+              >
+                <option value="" className="bg-zinc-900 text-zinc-300">More States ▾</option>
+                {ALL_STATES.filter(s => !POPULAR_STATES.includes(s)).map(c => (
+                  <option key={c} value={c} className="bg-zinc-900 text-zinc-300">{c}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
