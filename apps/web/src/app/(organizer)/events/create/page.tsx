@@ -492,15 +492,16 @@ export default function CreateEventWizardPage() {
 
           {/* Navigation row */}
           <div className="flex justify-between mt-8 pt-6 border-t border-zinc-900 gap-3">
-            {step > 1 ? (
-              <button onClick={() => setStep(step - 1)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:text-white transition-all text-xs font-black uppercase tracking-widest">
-                <ArrowLeft className="h-4 w-4" />Back
-              </button>
-            ) : (
-              <button onClick={() => router.push('/dashboard')} className="text-xs font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors px-3 py-2">
+            <div className="flex items-center gap-3">
+              {step > 1 && (
+                <button type="button" onClick={() => setStep(step - 1)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:text-white transition-all text-xs font-black uppercase tracking-widest">
+                  <ArrowLeft className="h-4 w-4" />Back
+                </button>
+              )}
+              <button type="button" onClick={() => router.push('/dashboard')} className="text-xs font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors px-3 py-2">
                 Cancel
               </button>
-            )}
+            </div>
             {step < 4 ? (
               <button onClick={handleNext} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#E8441A] hover:brightness-110 text-white text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-[#E8441A]/20">
                 Next<ArrowRight className="h-4 w-4" />

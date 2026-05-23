@@ -223,7 +223,7 @@ export const ticketsController = {
           *,
           ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date, is_ended))
         `)
-        .eq('holder_email', req.user.email);
+        .ilike('holder_email', req.user.email);
         // Removed .eq('status', 'active') here too
       if (assignedError) {
         console.error('Failed to fetch assigned tickets:', assignedError);
