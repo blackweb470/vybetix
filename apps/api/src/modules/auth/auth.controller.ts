@@ -188,6 +188,8 @@ export const authController = {
       return success(res, {
         user: dbUser,
         token: authData.session.access_token,
+        refreshToken: authData.session.refresh_token,
+        expiresAt: authData.session.expires_at, // Unix timestamp (seconds)
         expiresIn: authData.session.expires_in
       }, 'Login completed successfully!');
 
@@ -220,6 +222,36 @@ export const authController = {
     } catch (err: any) {
       console.error('Google OAuth error:', err);
       return error(res, 'OAuth setup error', err.message, 500);
+    }
+  },
+
+  /**
+   * Silently refreshes an expired access token using the stored refresh token.
+   * This prevents users from being auto-logged out after the 1-hour JWT expiry.
+   */
+  refreshSession: async (req: Request, res: Response) => {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+        return error(res, 'Refresh failed', 'Missing refresh token', 400);
+      }
+
+      const { data, error: refreshError } = await supabase.auth.refreshSession({
+        refresh_token: refreshToken
+      });
+
+      if (refreshError || !data.session) {
+        return error(res, 'Session expired', 'Could not refresh session — please log in again', 401);
+      }
+
+      return success(res, {
+        token: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        expiresAt: data.session.expires_at
+      }, 'Session refreshed successfully');
+    } catch (err: any) {
+      console.error('Refresh session error:', err);
+      return error(res, 'Refresh error', err.message, 500);
     }
   },
 

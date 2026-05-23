@@ -28,11 +28,11 @@ api.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     if (typeof window !== 'undefined' && config.headers) {
       config.headers['x-device-fingerprint'] = getOrCreateDeviceFingerprint();
     }
-    
+
     return config;
   },
   (error) => {
@@ -40,25 +40,88 @@ api.interceptors.request.use(
   }
 );
 
-// Gracefully redirect users or clear store if the session expires or returns unauthenticated statuses
+// Tracks whether a token refresh is already in-flight to prevent duplicate calls
+let isRefreshing = false;
+let pendingQueue: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = [];
+
+function drainQueue(newToken: string | null, err: any = null) {
+  pendingQueue.forEach((p) => (newToken ? p.resolve(newToken) : p.reject(err)));
+  pendingQueue = [];
+}
+
+/**
+ * On a 401, silently attempt to refresh the access token using the stored refresh token.
+ * If the refresh succeeds, the original request is retried transparently.
+ * If the refresh fails (truly expired/revoked session), the user is logged out.
+ * Scanner pages are always excluded from auto-logout to avoid disrupting gate staff mid-event.
+ */
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        const currentPath = window.location.pathname;
-        // Do NOT auto-logout on scanner pages — the scan might have failed for other reasons.
-        // Organizers should never be silently logged out mid-event.
-        const isScannerPage = currentPath.startsWith('/scan/');
+  async (err) => {
+    const originalRequest = err.config;
+
+    if (err.response?.status === 401 && !originalRequest._retry) {
+      if (typeof window === 'undefined') return Promise.reject(err);
+
+      const currentPath = window.location.pathname;
+      // Gate staff should never be silently logged out mid-event
+      const isScannerPage = currentPath.startsWith('/scan/');
+
+      const { refreshToken, updateToken, clearAuth } = useAuthStore.getState();
+
+      // No refresh token stored — session is unrecoverable
+      if (!refreshToken) {
         if (!isScannerPage) {
-          useAuthStore.getState().clearAuth();
+          clearAuth();
           if (!currentPath.startsWith('/login')) {
             window.location.href = `/login?expired=true&redirect=${encodeURIComponent(currentPath)}`;
           }
         }
+        return Promise.reject(err);
+      }
+
+      originalRequest._retry = true;
+
+      // If another request already kicked off a refresh, queue this one
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          pendingQueue.push({
+            resolve: (token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(api(originalRequest));
+            },
+            reject
+          });
+        });
+      }
+
+      isRefreshing = true;
+      try {
+        const refreshRes = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken });
+        const { token: newToken, refreshToken: newRefresh, expiresAt } = refreshRes.data.data;
+
+        // Persist renewed tokens to store
+        updateToken(newToken, newRefresh, expiresAt);
+
+        // Retry the original failed request with the fresh token
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        drainQueue(newToken);
+        return api(originalRequest);
+      } catch (refreshErr) {
+        // Refresh itself failed — the session is truly dead
+        drainQueue(null, refreshErr);
+        if (!isScannerPage) {
+          clearAuth();
+          if (!currentPath.startsWith('/login')) {
+            window.location.href = `/login?expired=true&redirect=${encodeURIComponent(currentPath)}`;
+          }
+        }
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
       }
     }
-    return Promise.reject(error);
+
+    return Promise.reject(err);
   }
 );
-

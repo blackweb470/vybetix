@@ -9,12 +9,11 @@ export function useAuth() {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string; fullName?: string }) => {
-      // Simulate/Trigger login or credentials lookup
       const res = await api.post('/api/auth/login', credentials);
-      return res.data.data as { user: UserProfile; token: string };
+      return res.data.data as { user: UserProfile; token: string; refreshToken: string; expiresAt: number };
     },
     onSuccess: (data) => {
-      setAuth(data.user, data.token);
+      setAuth(data.user, data.token, data.refreshToken, data.expiresAt);
     }
   });
 

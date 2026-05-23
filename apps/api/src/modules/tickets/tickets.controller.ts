@@ -194,15 +194,14 @@ export const ticketsController = {
 
       const myOrderIds = (myOrders || []).map((o: any) => o.id);
 
-      // Step 2a: Fetch tickets from the user's own orders
+      // Step 2a: Fetch tickets from the user's own orders (already verified as paid)
       let buyerTickets: any[] = [];
       if (myOrderIds.length > 0) {
         const { data, error: err } = await supabase
           .from('tickets')
           .select(`
             *,
-            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date)),
-            orders(id, buyer_id, paystack_status)
+            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date))
           `)
           .in('order_id', myOrderIds)
           .eq('status', 'active');
@@ -215,13 +214,13 @@ export const ticketsController = {
       }
 
       // Step 2b: Fetch tickets assigned to the user's email (bought by someone else for them)
-      // Only include tickets whose orders are paid
+      // We avoid joining orders here to prevent PostgREST from traversing the
+      // orders.buyer_id → auth.users FK, which causes a permission error.
       const { data: assignedTicketsRaw, error: assignedError } = await supabase
         .from('tickets')
         .select(`
           *,
-          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date)),
-          orders(id, buyer_id, paystack_status)
+          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date))
         `)
         .eq('holder_email', req.user.email)
         .eq('status', 'active');
@@ -231,10 +230,20 @@ export const ticketsController = {
         return error(res, 'Failed to fetch assigned tickets', assignedError.message, 400);
       }
 
-      // Only include assigned tickets where the order was actually paid
-      const assignedTickets = (assignedTicketsRaw || []).filter(
-        (t: any) => t.orders?.paystack_status === 'success'
-      );
+      // Fetch all paid order IDs so we can filter out unpaid assigned tickets
+      const rawAssigned = assignedTicketsRaw || [];
+      let assignedTickets: any[] = [];
+      if (rawAssigned.length > 0) {
+        const assignedOrderIds = [...new Set(rawAssigned.map((t: any) => t.order_id))];
+        const { data: paidOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .in('id', assignedOrderIds)
+          .eq('paystack_status', 'success');
+
+        const paidSet = new Set((paidOrders || []).map((o: any) => o.id));
+        assignedTickets = rawAssigned.filter((t: any) => paidSet.has(t.order_id));
+      }
 
       // Merge and deduplicate by ticket ID
       const allTicketsMap = new Map();

@@ -15,9 +15,12 @@ export interface UserProfile {
 interface AuthState {
   user: UserProfile | null;
   token: string | null;
-  setAuth: (user: UserProfile, token: string) => void;
+  refreshToken: string | null;
+  expiresAt: number | null; // Unix timestamp in seconds
+  setAuth: (user: UserProfile, token: string, refreshToken?: string, expiresAt?: number) => void;
   clearAuth: () => void;
   updateUser: (updatedUser: Partial<UserProfile>) => void;
+  updateToken: (token: string, refreshToken: string, expiresAt: number) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -25,9 +28,12 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
-      setAuth: (user, token) => set({ user, token }),
+      refreshToken: null,
+      expiresAt: null,
+      setAuth: (user, token, refreshToken, expiresAt) =>
+        set({ user, token, refreshToken: refreshToken ?? null, expiresAt: expiresAt ?? null }),
       clearAuth: () => {
-        set({ user: null, token: null });
+        set({ user: null, token: null, refreshToken: null, expiresAt: null });
         if (typeof window !== 'undefined') {
           localStorage.removeItem('Vybetix-auth');
         }
@@ -35,7 +41,9 @@ export const useAuthStore = create<AuthState>()(
       updateUser: (updatedFields) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...updatedFields } : null
-        }))
+        })),
+      updateToken: (token, refreshToken, expiresAt) =>
+        set({ token, refreshToken, expiresAt })
     }),
     {
       name: 'Vybetix-auth'

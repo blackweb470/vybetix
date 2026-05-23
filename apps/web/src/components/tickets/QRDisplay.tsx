@@ -39,10 +39,11 @@ export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplay
 
   const progressPercentage = (timeLeft / 60) * 100;
   
-  // Create a slightly altered visual payload containing the rotating seed
-  // The scanner reads the main static token for verification, but we append a dynamic rotation index
-  // to make it look alive and prevent recording of static screenshot tokens
-  const visiblePayload = `${staticToken}#rot-${refreshTrigger}`;
+  // IMPORTANT: The QR code must encode ONLY the pure staticToken.
+  // The scanner verifies the HMAC of exactly this string — any suffix will break verification.
+  // Visual "rotation" is achieved by changing the React key on the SVG element, which forces
+  // a re-render without altering the encoded value.
+  const visiblePayload = staticToken;
 
   return (
     <div className="flex flex-col items-center gap-6 font-outfit text-zinc-100 p-4">
@@ -50,6 +51,7 @@ export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplay
       {/* 1. Secure QR code window box */}
       <div className="relative p-5 rounded-2xl bg-white border-4 border-[#E8441A] shadow-2xl transition-all duration-300">
         <QRCodeSVG
+          key={refreshTrigger}
           value={visiblePayload}
           size={220}
           level="M"

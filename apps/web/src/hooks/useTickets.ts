@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { useAuthStore } from '../store/authStore';
 import { BuyerTicket } from '../types';
 
 interface CheckoutInput {
@@ -13,12 +14,17 @@ interface CheckoutInput {
 }
 
 export function useMyTickets() {
+  const { token } = useAuthStore();
   return useQuery({
     queryKey: ['my-tickets'],
     queryFn: async () => {
       const res = await api.get('/api/tickets/my');
       return res.data.data as BuyerTicket[];
-    }
+    },
+    // Only fire when authenticated — prevents 401s on page load before store hydrates
+    enabled: !!token,
+    // Retry once on failure; don't hammer the server on genuine auth errors
+    retry: 1
   });
 }
 
