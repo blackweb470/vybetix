@@ -5,7 +5,7 @@ import { useOrganizerEvents } from '../../../hooks/useEvents';
 import { useAuth } from '../../../hooks/useAuth';
 import { formatNaira, formatDate } from '../../../lib/utils';
 import Link from 'next/link';
-import { Plus, QrCode, Calendar, Disc, Banknote, Activity, Users, TrendingUp, ArrowRight, ChevronRight, Zap, LayoutGrid, Edit3, Share2 } from 'lucide-react';
+import { Plus, QrCode, Calendar, Disc, Banknote, Activity, Users, TrendingUp, ArrowRight, ChevronRight, Zap, LayoutGrid, Edit3, Share2, Ticket } from 'lucide-react';
 import { useToast } from '../../../components/ui/toast';
 
 export default function OrganizerDashboardPage() {
