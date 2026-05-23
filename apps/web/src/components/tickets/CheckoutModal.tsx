@@ -26,6 +26,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
   const { toast } = useToast();
   const router = useRouter();
   const purchaseMutation = usePurchaseTicket();
+  const [isPaystackLoading, setIsPaystackLoading] = useState(false);
 
   // Tier select states
   const availableTiers = event.ticket_tiers || event.tiers || [];
@@ -92,6 +93,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
     }
 
     try {
+      setIsPaystackLoading(true);
       // 1. Fire purchase request to backend API to initialize order
       const orderSession = await purchaseMutation.mutateAsync({
         tierId: selectedTierId,
@@ -132,11 +134,13 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
               variant: 'info'
             });
           } finally {
+            setIsPaystackLoading(false);
             onClose();
             router.push('/tickets');
           }
         },
         onCancel: () => {
+          setIsPaystackLoading(false);
           toast({
             title: 'Payment cancelled',
             description: 'The transaction checkout has been cancelled.',
@@ -146,6 +150,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
       });
 
     } catch (err: any) {
+      setIsPaystackLoading(false);
       console.error('Checkout initialization failed:', err);
       toast({
         title: 'Checkout failed',
@@ -299,7 +304,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
           <Button
             type="submit"
-            isLoading={purchaseMutation.isPending}
+            isLoading={purchaseMutation.isPending || isPaystackLoading}
             className="w-full flex items-center justify-center gap-2 uppercase tracking-widest text-xs h-12"
           >
             <CreditCard className="h-4.5 w-4.5" />
