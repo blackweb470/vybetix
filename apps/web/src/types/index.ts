@@ -38,6 +38,7 @@ export interface EventDetail {
   is_university_only: boolean;
   university_id?: string;
   is_published: boolean;
+  is_ended?: boolean;
   created_at: string;
   ticket_tiers?: TicketTier[];
   tiers?: TicketTier[];

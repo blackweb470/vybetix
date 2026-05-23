@@ -47,7 +47,12 @@ export const ticketsController = {
 
       const event = tier.events;
 
-      // 2. Validate Tier Capacity Availability
+      // 2. Block purchases for events that have already ended
+      if (event.end_date && new Date(event.end_date) < new Date()) {
+        return error(res, 'Event has ended', 'Ticket sales are closed — this event has already ended.', 400);
+      }
+
+      // 3. Validate Tier Capacity Availability
       const { count: realSold } = await supabase
         .from('tickets')
         .select('id', { count: 'exact', head: true })

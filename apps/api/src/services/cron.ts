@@ -117,5 +117,40 @@ export function initCronJobs() {
   });
 
   console.log('[Cron] Automated jobs active.');
+
+  // Run every 15 minutes to auto-mark events as completed once their end_date has passed
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const now = new Date().toISOString();
+
+      const { data: expiredEvents, error: fetchError } = await supabase
+        .from('events')
+        .select('id, title')
+        .eq('status', 'published')
+        .lt('end_date', now);
+
+      if (fetchError) {
+        console.error('[Cron] Failed to fetch expired events:', fetchError.message);
+        return;
+      }
+
+      if (!expiredEvents || expiredEvents.length === 0) return;
+
+      const ids = expiredEvents.map(e => e.id);
+
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({ status: 'completed' })
+        .in('id', ids);
+
+      if (updateError) {
+        console.error('[Cron] Failed to mark events as completed:', updateError.message);
+      } else {
+        console.log(`[Cron] Marked ${expiredEvents.length} event(s) as completed:`, expiredEvents.map(e => e.title).join(', '));
+      }
+    } catch (err) {
+      console.error('[Cron] Error in auto-complete job:', err);
+    }
+  });
 }
 

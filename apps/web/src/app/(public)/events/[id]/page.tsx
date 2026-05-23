@@ -10,7 +10,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { useToast } from '../../../../components/ui/toast';
 import {
   Calendar, MapPin, ArrowLeft, ShieldAlert, LogIn, Disc, GraduationCap,
-  ShieldCheck, Clock, Tag, ChevronRight, Users, Share2
+  ShieldCheck, Clock, Tag, ChevronRight, Users, Share2, BanIcon
 } from 'lucide-react';
 
 const CAT_GRADIENTS: Record<string, string> = {
@@ -85,6 +85,10 @@ export default function EventDetailPage() {
     : 0;
   const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
 
+  // Determine if the event has ended
+  const isEnded: boolean = event.is_ended ||
+    (event.end_date ? new Date(event.end_date) < new Date() : false);
+
   const handleShare = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
@@ -92,6 +96,7 @@ export default function EventDetailPage() {
   };
 
   const handleBuyTickets = () => {
+    if (isEnded) return; // already blocked by the UI, but guard anyway
     if (!isAuthenticated) {
       toast({ title: 'Sign in required', description: 'Please log in to purchase tickets', variant: 'destructive' });
       router.push(`/login?redirect=${encodeURIComponent(`/events/${id}`)}`);
@@ -161,6 +166,17 @@ export default function EventDetailPage() {
                 {event.title}
               </h1>
 
+              {/* Ended banner */}
+              {isEnded && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-950/30 border border-amber-700/40 mt-1">
+                  <BanIcon className="h-4 w-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">This Event Has Ended</p>
+                    <p className="text-xs text-amber-300/60 mt-0.5">Ticket sales are permanently closed. You can still view event details below.</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-400 pt-1">
                 <span className="flex items-center gap-1.5 font-bold">
                   <Calendar className="h-3.5 w-3.5 text-[#E8441A]" />
@@ -186,6 +202,15 @@ export default function EventDetailPage() {
             {/* Ticket Tiers table */}
             <div className="border-t border-zinc-900 pt-6">
               <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Available Ticket Tiers</h3>
+              {isEnded ? (
+                <div className="flex items-center gap-3 p-4 rounded-2xl border border-amber-900/30 bg-amber-950/10">
+                  <BanIcon className="h-5 w-5 text-amber-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-black text-amber-400 uppercase tracking-wide">Sales Closed</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">This event has ended. Ticket purchases are no longer available.</p>
+                  </div>
+                </div>
+              ) : (
               <div className="flex flex-col gap-3">
                 {activeTiers.map((tier) => {
                   const soldCount = tier.sold || 0;
@@ -228,6 +253,7 @@ export default function EventDetailPage() {
                   );
                 })}
               </div>
+              )}
             </div>
 
             {/* Trust row */}
@@ -299,18 +325,28 @@ export default function EventDetailPage() {
               )}
 
               {/* CTA Button */}
-              <button
-                onClick={handleBuyTickets}
-                className="h-12 w-full rounded-xl bg-[#E8441A] hover:brightness-110 active:scale-[0.98] transition-all text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#E8441A]/20"
-              >
-                {isAuthenticated ? (
-                  <><span>Get Tickets</span><ChevronRight className="h-4 w-4" /></>
-                ) : (
-                  <><LogIn className="h-4 w-4" /><span>Sign In to Buy</span></>
-                )}
-              </button>
+              {isEnded ? (
+                <div className="flex flex-col gap-2">
+                  <div className="h-12 w-full rounded-xl bg-zinc-900 border border-amber-900/30 text-amber-500 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 cursor-not-allowed">
+                    <BanIcon className="h-4 w-4" />
+                    Sales Closed
+                  </div>
+                  <p className="text-center text-[10px] text-zinc-600">This event has ended. No tickets can be purchased.</p>
+                </div>
+              ) : (
+                <button
+                  onClick={handleBuyTickets}
+                  className="h-12 w-full rounded-xl bg-[#E8441A] hover:brightness-110 active:scale-[0.98] transition-all text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#E8441A]/20"
+                >
+                  {isAuthenticated ? (
+                    <><span>Get Tickets</span><ChevronRight className="h-4 w-4" /></>
+                  ) : (
+                    <><LogIn className="h-4 w-4" /><span>Sign In to Buy</span></>
+                  )}
+                </button>
+              )}
 
-              {!isAuthenticated && (
+              {!isAuthenticated && !isEnded && (
                 <p className="text-center text-[10px] text-zinc-600 -mt-2">You must be signed in to purchase</p>
               )}
 

@@ -78,6 +78,7 @@ export const eventsController = {
   list: async (req: Request, res: Response) => {
     try {
       const { category, city, universityId, isUniversityOnly, search } = req.query;
+      const now = new Date().toISOString();
 
       let query = supabase
         .from('events')
@@ -102,6 +103,11 @@ export const eventsController = {
       if (search) {
         const searchStr = String(search);
         query = query.or(`title.ilike.%${searchStr}%,description.ilike.%${searchStr}%,venue.ilike.%${searchStr}%`);
+        // When searching: allow ended events through so users can still find them
+        // (they will be visually marked as ended in the UI)
+      } else {
+        // Normal browse: hide events that have already ended
+        query = query.gt('end_date', now);
       }
 
       // Order by event date ascending
@@ -133,9 +139,10 @@ export const eventsController = {
         });
       }
 
-      // Merge real sold counts into each tier
+      // Merge real sold counts into each tier, and attach is_ended flag
       const eventsWithRealCounts = (eventsList || []).map(event => ({
         ...event,
+        is_ended: event.end_date ? new Date(event.end_date) < new Date() : false,
         ticket_tiers: (event.ticket_tiers || []).map((tier: any) => ({
           ...tier,
           sold: tierCountMap[tier.id] || 0
@@ -202,7 +209,10 @@ export const eventsController = {
         sold: tierCountMap[tier.id] || 0
       }));
 
-      return success(res, { ...event, ticket_tiers: tiersWithRealCounts, tiers: tiersWithRealCounts }, 'Event details retrieved successfully');
+      // Attach is_ended flag so the frontend can block ticket purchasing
+      const isEnded = event.end_date ? new Date(event.end_date) < new Date() : false;
+
+      return success(res, { ...event, is_ended: isEnded, ticket_tiers: tiersWithRealCounts, tiers: tiersWithRealCounts }, 'Event details retrieved successfully');
     } catch (err: any) {
       console.error('Get event error:', err);
       return error(res, 'Server error getting event', err.message, 500);
