@@ -73,7 +73,7 @@ export async function generateQRImage(token: string): Promise<string> {
     return await QRCode.toDataURL(token, {
       errorCorrectionLevel: 'H',
       margin: 1,
-      width: 300
+      width: 800
     });
   } catch (error) {
     console.error('Failed to generate QR Image:', error);
