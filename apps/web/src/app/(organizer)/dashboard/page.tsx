@@ -48,9 +48,14 @@ export default function OrganizerDashboardPage() {
               {mounted && user?.full_name ? `${user.full_name.split(' ')[0]}'s` : "Organizer's"} Dashboard
             </h1>
           </div>
-          <Link href="/events/create" className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E8441A] hover:brightness-110 text-white text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-[#E8441A]/15">
-            <Plus className="h-4 w-4" />New Event
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard/tickets" className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-300 hover:text-white hover:border-[#E8441A] text-xs font-black uppercase tracking-widest transition-all">
+              <Ticket className="h-4 w-4" />Ticket History
+            </Link>
+            <Link href="/events/create" className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E8441A] hover:brightness-110 text-white text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-[#E8441A]/15">
+              <Plus className="h-4 w-4" />New Event
+            </Link>
+          </div>
         </div>
       </div>
 

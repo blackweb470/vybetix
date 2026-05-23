@@ -102,12 +102,20 @@ export default function Navbar() {
                 )}
 
                 {user.role === 'organizer' && (
-                  <Link href="/dashboard">
-                    <DropdownMenuItem>
-                      <LayoutDashboard className="mr-2.5 h-4 w-4 text-[#E8441A]" />
-                      Organizer Hub
-                    </DropdownMenuItem>
-                  </Link>
+                  <>
+                    <Link href="/dashboard">
+                      <DropdownMenuItem>
+                        <LayoutDashboard className="mr-2.5 h-4 w-4 text-[#E8441A]" />
+                        Organizer Hub
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/dashboard/tickets">
+                      <DropdownMenuItem>
+                        <Ticket className="mr-2.5 h-4 w-4 text-emerald-400" />
+                        Ticket History
+                      </DropdownMenuItem>
+                    </Link>
+                  </>
                 )}
 
                 {user.role === 'admin' && (
