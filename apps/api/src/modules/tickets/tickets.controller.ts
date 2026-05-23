@@ -202,7 +202,7 @@ export const ticketsController = {
           .from('tickets')
           .select(`
             *,
-            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date, is_ended))
+            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date))
           `)
           .in('order_id', myOrderIds);
           // Removed .eq('status', 'active') so we get used/cancelled tickets too!
@@ -221,7 +221,7 @@ export const ticketsController = {
         .from('tickets')
         .select(`
           *,
-          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date, is_ended))
+          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date))
         `)
         .ilike('holder_email', req.user.email);
         // Removed .eq('status', 'active') here too
@@ -424,7 +424,7 @@ export const ticketsController = {
         .from('tickets')
         .select(`
           *,
-          ticket_tiers(name, price, events(title, event_date, is_ended, end_date))
+          ticket_tiers(name, price, events(title, event_date, end_date))
         `)
         .in('tier_id', tierIds)
         .order('created_at', { ascending: false });
