@@ -13,7 +13,7 @@ export const createEventSchema = z.object({
   category: z.enum(['music', 'campus', 'tech', 'comedy', 'church', 'sports', 'food', 'other'] as const),
   customCategory: z.string().nullable().optional(),
   customUniversity: z.string().nullable().optional(),
-  city: z.enum(['lagos', 'abuja', 'ibadan', 'port_harcourt', 'enugu', 'kano', 'other'] as const),
+  city: z.string().min(2, 'City is required'),
   venue: z.string().min(3, 'Venue must be at least 3 characters'),
   eventDate: z.string().transform(val => new Date(val).toISOString()),
   endDate: z.string().transform(val => new Date(val).toISOString()),
