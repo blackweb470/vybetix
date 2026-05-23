@@ -265,7 +265,7 @@ export const authController = {
           .from('organizer_profiles')
           .select('*')
           .eq('user_id', dbUser.id)
-          .single();
+          .maybeSingle();
         organizerProfile = profile;
       }
 
@@ -308,12 +308,12 @@ export const authController = {
       // If user is organizer, also update organizer_profiles
       let organizerProfile = null;
       if (dbUser.role === 'organizer') {
-        // Fetch current profile to get existing paystack_subaccount_code
+        // Fetch current profile to get existing paystack_subaccount_code safely
         const { data: currentProfile } = await supabase
           .from('organizer_profiles')
           .select('*')
           .eq('user_id', req.user.id)
-          .single();
+          .maybeSingle();
 
         let parsedBankCode = '';
         let parsedBankName = bankName || '';
@@ -349,18 +349,36 @@ export const authController = {
           }
         }
 
-        const { data: profile, error: profileError } = await supabase
+        const profilePayload: any = {
+          user_id: req.user.id,
+          business_name: businessName,
+          bank_name: parsedBankName,
+          account_number: accountNumber,
+          account_name: accountName
+        };
+
+        if (subaccountCode) {
+          profilePayload.paystack_subaccount_code = subaccountCode;
+        }
+
+        let { data: profile, error: profileError } = await supabase
           .from('organizer_profiles')
-          .update({
-            business_name: businessName,
-            bank_name: parsedBankName,
-            account_number: accountNumber,
-            account_name: accountName,
-            paystack_subaccount_code: subaccountCode
-          })
-          .eq('user_id', req.user.id)
+          .upsert(profilePayload, { onConflict: 'user_id' })
           .select()
           .single();
+
+        // Fallback in case the paystack_subaccount_code column is not yet migrated in database
+        if (profileError && (profileError.message?.includes('paystack_subaccount_code') || profileError.code === 'PGRST204')) {
+          console.warn('[Profile Update] paystack_subaccount_code column missing in database. Retrying without it...');
+          delete profilePayload.paystack_subaccount_code;
+          const retryResult = await supabase
+            .from('organizer_profiles')
+            .upsert(profilePayload, { onConflict: 'user_id' })
+            .select()
+            .single();
+          profile = retryResult.data;
+          profileError = retryResult.error;
+        }
 
         if (profileError) {
           console.error('Organizer profile update error:', profileError);
