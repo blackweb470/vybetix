@@ -180,57 +180,71 @@ export const ticketsController = {
 
       const deviceFingerprint = req.headers['x-device-fingerprint'] as string;
 
-      // We need tickets bought by the user OR assigned to the user's email.
-      // Since PostgREST OR across joins can be tricky, we'll fetch them in two queries and merge.
-      
-      // Query 1: Tickets bought by the user
-      const { data: buyerTickets, error: queryError1 } = await supabase
-        .from('tickets')
-        .select(`
-          *,
-          ticket_tiers:ticket_tiers!inner(
-            name,
-            price,
-            events:events(title, cover_image_url, venue, event_date)
-          ),
-          orders:orders!inner(id, buyer_id, paystack_status)
-        `)
-        .eq('orders.buyer_id', req.user.id)
-        .eq('orders.paystack_status', 'success') as any;
+      // Step 1: Fetch the user's successful order IDs
+      const { data: myOrders, error: ordersError } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('buyer_id', req.user.id)
+        .eq('paystack_status', 'success');
 
-      if (queryError1) {
-        return error(res, 'Failed to fetch tickets', queryError1.message, 400);
+      if (ordersError) {
+        console.error('Failed to fetch orders:', ordersError);
+        return error(res, 'Failed to fetch orders', ordersError.message, 400);
       }
 
-      // Query 2: Tickets assigned to the user's email (but maybe bought by someone else)
-      const { data: assignedTickets, error: queryError2 } = await supabase
+      const myOrderIds = (myOrders || []).map((o: any) => o.id);
+
+      // Step 2a: Fetch tickets from the user's own orders
+      let buyerTickets: any[] = [];
+      if (myOrderIds.length > 0) {
+        const { data, error: err } = await supabase
+          .from('tickets')
+          .select(`
+            *,
+            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date)),
+            orders(id, buyer_id, paystack_status)
+          `)
+          .in('order_id', myOrderIds)
+          .eq('status', 'active');
+
+        if (err) {
+          console.error('Failed to fetch buyer tickets:', err);
+          return error(res, 'Failed to fetch tickets', err.message, 400);
+        }
+        buyerTickets = data || [];
+      }
+
+      // Step 2b: Fetch tickets assigned to the user's email (bought by someone else for them)
+      // Only include tickets whose orders are paid
+      const { data: assignedTicketsRaw, error: assignedError } = await supabase
         .from('tickets')
         .select(`
           *,
-          ticket_tiers:ticket_tiers!inner(
-            name,
-            price,
-            events:events(title, cover_image_url, venue, event_date)
-          ),
-          orders:orders!inner(id, buyer_id, paystack_status)
+          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date)),
+          orders(id, buyer_id, paystack_status)
         `)
         .eq('holder_email', req.user.email)
-        .eq('orders.paystack_status', 'success') as any;
+        .eq('status', 'active');
 
-      if (queryError2) {
-        return error(res, 'Failed to fetch assigned tickets', queryError2.message, 400);
+      if (assignedError) {
+        console.error('Failed to fetch assigned tickets:', assignedError);
+        return error(res, 'Failed to fetch assigned tickets', assignedError.message, 400);
       }
+
+      // Only include assigned tickets where the order was actually paid
+      const assignedTickets = (assignedTicketsRaw || []).filter(
+        (t: any) => t.orders?.paystack_status === 'success'
+      );
 
       // Merge and deduplicate by ticket ID
       const allTicketsMap = new Map();
-      [...(buyerTickets || []), ...(assignedTickets || [])].forEach((t: any) => {
+      [...buyerTickets, ...assignedTickets].forEach((t: any) => {
         allTicketsMap.set(t.id, t);
       });
       const tickets = Array.from(allTicketsMap.values());
 
       // Check device fingerprint binding
-      const processedTickets = await Promise.all((tickets || []).map(async (ticket: any) => {
-        // Only active tickets are checked for device binding
+      const processedTickets = await Promise.all(tickets.map(async (ticket: any) => {
         if (ticket.status !== 'active') {
           return ticket;
         }
@@ -255,7 +269,7 @@ export const ticketsController = {
         if (ticket.device_locked && ticket.device_fingerprint && ticket.device_fingerprint !== deviceFingerprint) {
           return {
             ...ticket,
-            qr_token: null, // Hide the qr_token to secure it from screenshot theft / unauthorized viewing
+            qr_token: null,
             is_device_mismatch: true
           };
         }
@@ -269,6 +283,7 @@ export const ticketsController = {
       return error(res, 'Server error getting tickets', err.message, 500);
     }
   },
+
 
   /**
    * Fetches ticket by securely decoding the scanned QR token (Admins/Organizers only).
