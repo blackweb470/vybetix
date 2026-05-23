@@ -23,7 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 // Create a dedicated auth client so we don't pollute the global service-role client with user sessions
 const authClient = createClient(
   process.env.SUPABASE_URL as string,
-  process.env.SUPABASE_ANON_KEY as string,
+  (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY) as string,
   { auth: { persistSession: false, autoRefreshToken: false } }
 );
 
