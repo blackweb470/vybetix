@@ -25,9 +25,11 @@ const PORT = process.env.PORT || 4000;
 app.use(helmet());
 
 // Enable CORS — restrict to frontend origin(s) via env in production
-const allowedOrigins = process.env.ALLOWED_ORIGINS
+const envOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
   : ['http://localhost:3000'];
+
+const allowedOrigins = [...envOrigins, 'https://vybetix.com', 'https://www.vybetix.com'];
 
 app.use(cors({
   origin: (origin, callback) => {
