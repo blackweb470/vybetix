@@ -127,7 +127,9 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
     }
 
     const response = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'Vybetix <tickets@vybetix.com>',
+      from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@')) 
+        ? process.env.RESEND_FROM_EMAIL 
+        : 'Vybetix <tickets@vybetix.com>',
       to: [email],
       subject: `⚡️ Your tickets for ${eventTitle} are ready!`,
       html: emailHtml,
@@ -173,7 +175,9 @@ export async function sendEventReminderEmail(
   }
 
   return await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || 'Vybetix <tickets@vybetix.com>',
+    from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@')) 
+      ? process.env.RESEND_FROM_EMAIL 
+      : 'Vybetix <tickets@vybetix.com>',
     to: [email],
     subject: `⏰ Reminder: ${eventTitle} is tomorrow!`,
     html: emailHtml
