@@ -11,6 +11,7 @@ router.post('/checkout', authMiddleware, checkoutLimiter, ticketsController.init
 router.get('/my', authMiddleware, ticketsController.getMyTickets);
 
 // Organizer and gate staff QR decoding and validation endpoints
+router.get('/organizer', authMiddleware, requireRole(['organizer', 'admin']), ticketsController.getOrganizerTickets);
 router.get('/decode', authMiddleware, requireRole(['organizer', 'admin']), ticketsController.getTicketByQR);
 router.post('/validate', authMiddleware, requireRole(['organizer', 'admin']), ticketsController.validateTicket);
 

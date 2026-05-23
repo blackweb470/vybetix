@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMyTickets } from '../../../hooks/useTickets';
 import TicketCard from '../../../components/tickets/TicketCard';
 import Link from 'next/link';
@@ -8,6 +8,24 @@ import { Ticket, Disc, Compass, ShieldCheck, QrCode } from 'lucide-react';
 
 export default function BuyerTicketsPage() {
   const { data: tickets, isLoading, error } = useMyTickets();
+  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'ended'>('active');
+
+  const filteredTickets = useMemo(() => {
+    if (!tickets) return [];
+    return tickets.filter((ticket) => {
+      const event = ticket.ticket_tiers?.events;
+      let isEnded = false;
+      if (event) {
+        // @ts-ignore - is_ended and end_date added to query but type may not have it yet
+        isEnded = event.is_ended || (event.end_date && new Date(event.end_date) < new Date());
+      }
+      
+      if (filter === 'active') return ticket.status === 'active' && !isEnded;
+      if (filter === 'used') return ticket.status === 'used';
+      if (filter === 'ended') return isEnded;
+      return true; // 'all'
+    });
+  }, [tickets, filter]);
 
   return (
     <div className="w-full min-h-screen bg-[#08080C] font-outfit text-zinc-100">
@@ -54,6 +72,30 @@ export default function BuyerTicketsPage() {
           ))}
         </div>
 
+        {/* Filter Tabs */}
+        {!isLoading && !error && tickets && tickets.length > 0 && (
+          <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
+            {[
+              { id: 'active', label: 'Active Passes' },
+              { id: 'used', label: 'Used / Scanned' },
+              { id: 'ended', label: 'Past Events' },
+              { id: 'all', label: 'All Tickets' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setFilter(tab.id as any)}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                  filter === tab.id
+                    ? 'bg-[#E8441A] text-white shadow-md shadow-[#E8441A]/20'
+                    : 'bg-zinc-950/50 border border-zinc-900 text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Tickets Grid */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -64,11 +106,15 @@ export default function BuyerTicketsPage() {
           <div className="text-center py-20 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/20">
             <p className="text-sm font-bold text-zinc-500 uppercase tracking-wide">Failed to load tickets. Please refresh.</p>
           </div>
-        ) : tickets && tickets.length > 0 ? (
+        ) : filteredTickets && filteredTickets.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tickets.map((ticket) => (
+            {filteredTickets.map((ticket) => (
               <TicketCard key={ticket.id} ticket={ticket} />
             ))}
+          </div>
+        ) : tickets && tickets.length > 0 ? (
+          <div className="w-full text-center py-20 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/10">
+            <p className="text-sm font-bold text-zinc-500 uppercase tracking-wide">No tickets match this filter.</p>
           </div>
         ) : (
           <div className="w-full text-center py-24 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/10 flex flex-col items-center gap-5">

@@ -28,6 +28,19 @@ export function useMyTickets() {
   });
 }
 
+export function useOrganizerTickets() {
+  const { token } = useAuthStore();
+  return useQuery({
+    queryKey: ['organizer-tickets'],
+    queryFn: async () => {
+      const res = await api.get('/api/tickets/organizer');
+      return res.data.data as BuyerTicket[];
+    },
+    enabled: !!token,
+    retry: 1
+  });
+}
+
 export function usePurchaseTicket() {
   const queryClient = useQueryClient();
   return useMutation({

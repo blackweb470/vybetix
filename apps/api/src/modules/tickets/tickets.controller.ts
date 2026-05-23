@@ -202,10 +202,10 @@ export const ticketsController = {
           .from('tickets')
           .select(`
             *,
-            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date))
+            ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date, is_ended))
           `)
-          .in('order_id', myOrderIds)
-          .eq('status', 'active');
+          .in('order_id', myOrderIds);
+          // Removed .eq('status', 'active') so we get used/cancelled tickets too!
 
         if (err) {
           console.error('Failed to fetch buyer tickets:', err);
@@ -221,11 +221,10 @@ export const ticketsController = {
         .from('tickets')
         .select(`
           *,
-          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date))
+          ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date, is_ended))
         `)
-        .eq('holder_email', req.user.email)
-        .eq('status', 'active');
-
+        .eq('holder_email', req.user.email);
+        // Removed .eq('status', 'active') here too
       if (assignedError) {
         console.error('Failed to fetch assigned tickets:', assignedError);
         return error(res, 'Failed to fetch assigned tickets', assignedError.message, 400);
@@ -375,6 +374,85 @@ export const ticketsController = {
     } catch (err: any) {
       console.error('Validate ticket error:', err);
       return error(res, 'Server error validating ticket', err.message, 500);
+    }
+  },
+
+  /**
+   * Retrieves all tickets sold for events owned by the organizer.
+   */
+  getOrganizerTickets: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return error(res, 'Unauthorized', 'User session required', 401);
+      }
+
+      // 1. Get all events for this organizer
+      const { data: myEvents, error: eventsError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('organizer_id', req.user.id);
+
+      if (eventsError) {
+        console.error('Failed to fetch organizer events:', eventsError);
+        return error(res, 'Failed to fetch events', eventsError.message, 400);
+      }
+
+      const eventIds = (myEvents || []).map((e: any) => e.id);
+      if (eventIds.length === 0) {
+         return success(res, [], 'No events found');
+      }
+
+      // 2. Get all tiers for those events
+      const { data: myTiers, error: tiersError } = await supabase
+        .from('ticket_tiers')
+        .select('id')
+        .in('event_id', eventIds);
+
+      if (tiersError) {
+         console.error('Failed to fetch organizer tiers:', tiersError);
+         return error(res, 'Failed to fetch tiers', tiersError.message, 400);
+      }
+
+      const tierIds = (myTiers || []).map((t: any) => t.id);
+      if (tierIds.length === 0) {
+         return success(res, [], 'No ticket tiers found');
+      }
+
+      // 3. Get all tickets for those tiers
+      // We only fetch tickets associated with successful orders
+      const { data: allTicketsRaw, error: ticketsError } = await supabase
+        .from('tickets')
+        .select(`
+          *,
+          ticket_tiers(name, price, events(title, event_date, is_ended, end_date))
+        `)
+        .in('tier_id', tierIds)
+        .order('created_at', { ascending: false });
+
+      if (ticketsError) {
+        console.error('Failed to fetch organizer tickets:', ticketsError);
+        return error(res, 'Failed to fetch tickets', ticketsError.message, 400);
+      }
+
+      // 4. Ensure these tickets belong to paid orders
+      const rawTickets = allTicketsRaw || [];
+      let finalTickets: any[] = [];
+      if (rawTickets.length > 0) {
+         const orderIds = [...new Set(rawTickets.map((t: any) => t.order_id))];
+         const { data: paidOrders } = await supabase
+           .from('orders')
+           .select('id')
+           .in('id', orderIds)
+           .eq('paystack_status', 'success');
+           
+         const paidSet = new Set((paidOrders || []).map((o: any) => o.id));
+         finalTickets = rawTickets.filter((t: any) => paidSet.has(t.order_id));
+      }
+
+      return success(res, finalTickets, 'Organizer tickets fetched successfully');
+    } catch (err: any) {
+      console.error('Get organizer tickets error:', err);
+      return error(res, 'Server error getting organizer tickets', err.message, 500);
     }
   }
 };
