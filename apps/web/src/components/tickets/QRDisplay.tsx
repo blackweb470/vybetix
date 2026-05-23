@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { Badge } from '../ui/badge';
 import { RefreshCw } from 'lucide-react';
 
@@ -53,21 +53,18 @@ export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplay
       
       {/* 1. Secure QR code window box */}
       <div 
-        className="relative p-5 rounded-2xl bg-white border-4 border-[#E8441A] shadow-2xl overflow-hidden group"
-        style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+        className="p-4 rounded-xl bg-white border-4 border-[#E8441A]"
       >
-        {/* Animated Scanline Overlay for Anti-Screenshot verification */}
-        <div className="absolute top-0 left-0 w-full h-[2px] bg-[#E8441A]/50 shadow-[0_0_15px_3px_#E8441A] z-10 animate-[scan_2s_ease-in-out_infinite_alternate]" />
-        <QRCodeSVG
+        <QRCodeCanvas
           key={refreshTrigger}
           value={visiblePayload}
-          size={220}
-          level="M"
+          size={240}
+          level="H"
           fgColor="#000000"
           bgColor="#FFFFFF"
           includeMargin={false}
           className="pointer-events-none select-none"
-          style={{ WebkitTouchCallout: 'none', shapeRendering: 'crispEdges' }}
+          style={{ WebkitTouchCallout: 'none' }}
         />
       </div>
 
