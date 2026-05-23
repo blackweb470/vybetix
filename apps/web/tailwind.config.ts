@@ -12,6 +12,12 @@ const config: Config = {
         syne: ['var(--font-syne)', 'sans-serif'],
         outfit: ['var(--font-outfit)', 'sans-serif'],
       },
+      keyframes: {
+        scan: {
+          '0%': { top: '0%' },
+          '100%': { top: '100%' },
+        }
+      },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
