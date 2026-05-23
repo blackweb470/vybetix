@@ -258,8 +258,10 @@ export const ticketsController = {
           return ticket;
         }
 
-        // Bind ticket to the current device if it's the first time viewing
-        if (!ticket.device_fingerprint && deviceFingerprint) {
+        const isHolder = ticket.holder_email?.toLowerCase() === req.user?.email?.toLowerCase();
+
+        // Bind ticket to the current device if it's the first time viewing AND they are the actual holder
+        if (isHolder && !ticket.device_fingerprint && deviceFingerprint) {
           const { error: updateError } = await supabase
             .from('tickets')
             .update({
