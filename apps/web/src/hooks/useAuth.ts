@@ -31,7 +31,9 @@ export function useAuth() {
       account_name?: string;
     }) => {
       const res = await api.post('/api/auth/register', userData);
-      return res.data.data as { user: UserProfile; token: string };
+      // API returns { user, session } — extract token from session
+      const { user, session } = res.data.data as { user: UserProfile; session: { access_token: string } | null };
+      return { user, token: session?.access_token ?? '' };
     },
     onSuccess: (data) => {
       setAuth(data.user, data.token);

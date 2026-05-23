@@ -53,8 +53,32 @@ export const authController = {
 
       const userId = authData.user.id;
 
-      // 2. Update role and phone in public.users database (synced by trigger, but this updates customized values)
-      const { data: dbUser, error: dbError } = await supabase
+      // 2. Wait for the Supabase trigger to sync the new auth user into public.users
+      // The trigger is asynchronous — retry up to 6 times over 3 seconds
+      let dbUser: any = null;
+      let dbError: any = null;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const result = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+        if (result.data) {
+          dbUser = result.data;
+          break;
+        }
+        dbError = result.error;
+      }
+
+      if (!dbUser) {
+        // Trigger never ran — rollback the auth user
+        await supabase.auth.admin.deleteUser(userId);
+        return error(res, 'Profile sync failed', dbError?.message || 'User record was not created in time. Please try again.', 500);
+      }
+
+      // 3. Now update role, phone, and full_name on the synced row
+      const { data: updatedUser, error: updateError } = await supabase
         .from('users')
         .update({
           role: parsedBody.role,
@@ -65,11 +89,12 @@ export const authController = {
         .select()
         .single();
 
-      if (dbError) {
-        // Rollback auth registration if profile sync failed
+      if (updateError) {
         await supabase.auth.admin.deleteUser(userId);
-        return error(res, 'Profile sync failed', dbError.message, 500);
+        return error(res, 'Profile sync failed', updateError.message, 500);
       }
+
+      dbUser = updatedUser;
 
       // If user registered as an organizer, initialize the organizer profile
       if (parsedBody.role === 'organizer') {
