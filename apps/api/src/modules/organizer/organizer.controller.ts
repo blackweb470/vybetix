@@ -54,19 +54,36 @@ export const organizerController = {
       }
 
       // 3. Fetch successful tickets for these events
-      const { data: tickets, error: ticketsError } = await supabase
-        .from('tickets')
-        .select('id, status, ticket_tiers(price)')
-        .in('ticket_tiers.event_id', eventIds);
+      // First, get all tier IDs for the organizer's events so we can map prices and fetch tickets
+      const { data: tiers, error: tiersError } = await supabase
+        .from('ticket_tiers')
+        .select('id, price')
+        .in('event_id', eventIds);
 
-      if (ticketsError) {
-        return error(res, 'Dashboard query failed', ticketsError.message, 400);
+      if (tiersError) {
+        return error(res, 'Dashboard query failed', tiersError.message, 400);
+      }
+
+      const tierMap = new Map((tiers || []).map(t => [t.id, t.price]));
+      const tierIds = Array.from(tierMap.keys());
+
+      let tickets: any[] = [];
+      if (tierIds.length > 0) {
+        const { data: ticketData, error: ticketsError } = await supabase
+          .from('tickets')
+          .select('id, status, tier_id')
+          .in('tier_id', tierIds);
+
+        if (ticketsError) {
+          return error(res, 'Dashboard query failed', ticketsError.message, 400);
+        }
+        tickets = ticketData || [];
       }
 
       const totalTicketsSold = tickets.length;
-      const totalRevenueKobo = tickets.reduce((sum, t: any) => {
-        const price = Array.isArray(t.ticket_tiers) ? t.ticket_tiers[0]?.price : t.ticket_tiers?.price;
-        return sum + (price || 0);
+      const totalRevenueKobo = tickets.reduce((sum, t) => {
+        const price = tierMap.get(t.tier_id) || 0;
+        return sum + price;
       }, 0);
       const totalAttendeesScanned = tickets.filter(t => t.status === 'used').length;
 
@@ -247,15 +264,25 @@ export const organizerController = {
       
       let totalRevenueKobo = 0;
       if (eventIds.length > 0) {
-        const { data: tickets } = await supabase
-          .from('tickets')
-          .select('ticket_tiers(price)')
-          .in('ticket_tiers.event_id', eventIds);
-        
-        totalRevenueKobo = tickets?.reduce((sum, t: any) => {
-          const price = Array.isArray(t.ticket_tiers) ? t.ticket_tiers[0]?.price : t.ticket_tiers?.price;
-          return sum + (price || 0);
-        }, 0) || 0;
+        const { data: tiers } = await supabase
+          .from('ticket_tiers')
+          .select('id, price')
+          .in('event_id', eventIds);
+
+        const tierMap = new Map((tiers || []).map(t => [t.id, t.price]));
+        const tierIds = Array.from(tierMap.keys());
+
+        if (tierIds.length > 0) {
+          const { data: tickets } = await supabase
+            .from('tickets')
+            .select('tier_id')
+            .in('tier_id', tierIds)
+            .eq('status', 'active');
+          
+          totalRevenueKobo = tickets?.reduce((sum, t) => {
+            return sum + (tierMap.get(t.tier_id) || 0);
+          }, 0) || 0;
+        }
       }
 
       // 3. Fetch all current payouts to determine limits

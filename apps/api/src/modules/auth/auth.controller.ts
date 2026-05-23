@@ -18,6 +18,15 @@ export const registerSchema = z.object({
   account_name: z.string().optional()
 });
 
+import { createClient } from '@supabase/supabase-js';
+
+// Create a dedicated auth client so we don't pollute the global service-role client with user sessions
+const authClient = createClient(
+  process.env.SUPABASE_URL as string,
+  process.env.SUPABASE_ANON_KEY as string,
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
+
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required')
@@ -35,8 +44,8 @@ export const authController = {
     try {
       const parsedBody = registerSchema.parse(req.body);
       
-      // 1. Register in Supabase auth service
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // 1. Register in Supabase auth service using dedicated auth client
+      const { data: authData, error: authError } = await authClient.auth.signUp({
         email: parsedBody.email,
         password: parsedBody.password,
         options: {
@@ -160,8 +169,8 @@ export const authController = {
     try {
       const parsedBody = loginSchema.parse(req.body);
 
-      // 1. Authenticate with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      // 1. Authenticate with Supabase Auth using dedicated auth client
+      const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
         email: parsedBody.email,
         password: parsedBody.password
       });
@@ -207,7 +216,7 @@ export const authController = {
    */
   googleOAuth: async (req: Request, res: Response) => {
     try {
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+      const { data, error: oauthError } = await authClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback`
@@ -236,7 +245,7 @@ export const authController = {
         return error(res, 'Refresh failed', 'Missing refresh token', 400);
       }
 
-      const { data, error: refreshError } = await supabase.auth.refreshSession({
+      const { data, error: refreshError } = await authClient.auth.refreshSession({
         refresh_token: refreshToken
       });
 
@@ -260,7 +269,7 @@ export const authController = {
    */
   logout: async (req: Request, res: Response) => {
     try {
-      const { error: logoutError } = await supabase.auth.signOut();
+      const { error: logoutError } = await authClient.auth.signOut();
       if (logoutError) {
         return error(res, 'Logout failed', logoutError.message, 400);
       }
