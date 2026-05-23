@@ -98,7 +98,7 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
         <!-- Footer -->
         <div style="background-color: #0d0d12; padding: 20px 40px; text-align: center; border-top: 1px solid #27272a; font-size: 12px; color: #52525b;">
           <p style="margin: 0;">&copy; 2026 Vybetix Platforms Ltd. All rights reserved.</p>
-          <p style="margin: 5px 0 0 0;">Lagos & Abuja, Nigeria • Support: <a href="mailto:support@Vybetix.ng" style="color: #3b82f6; text-decoration: none;">support@Vybetix.ng</a></p>
+          <p style="margin: 5px 0 0 0;">Lagos & Abuja, Nigeria • Support: <a href="mailto:hello@vybetix.com" style="color: #3b82f6; text-decoration: none;">hello@vybetix.com</a></p>
         </div>
 
       </div>
@@ -127,7 +127,7 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
     }
 
     const response = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'Vybetix <tickets@Vybetix.ng>',
+      from: process.env.RESEND_FROM_EMAIL || 'Vybetix <hello@vybetix.com>',
       to: [email],
       subject: `⚡️ Your tickets for ${eventTitle} are ready!`,
       html: emailHtml,
@@ -173,7 +173,7 @@ export async function sendEventReminderEmail(
   }
 
   return await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || 'Vybetix <tickets@Vybetix.ng>',
+    from: process.env.RESEND_FROM_EMAIL || 'Vybetix <hello@vybetix.com>',
     to: [email],
     subject: `⏰ Reminder: ${eventTitle} is tomorrow!`,
     html: emailHtml

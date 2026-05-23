@@ -100,6 +100,8 @@ export default function EditEventWizardPage() {
   const [universityId, setUniversityId] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('18:00');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('23:00');
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('lagos');
   const [tiers, setTiers] = useState<TicketTierForm[]>([
@@ -138,6 +140,22 @@ export default function EditEventWizardPage() {
           setEventTime(`${localHours}:${localMinutes}`);
         } catch (e) {
           console.error('Error parsing date:', e);
+        }
+      }
+      
+      if (event.end_date) {
+        try {
+          const d = new Date(event.end_date);
+          const localYear = d.getFullYear();
+          const localMonth = String(d.getMonth() + 1).padStart(2, '0');
+          const localDate = String(d.getDate()).padStart(2, '0');
+          setEndDate(`${localYear}-${localMonth}-${localDate}`);
+          
+          const localHours = String(d.getHours()).padStart(2, '0');
+          const localMinutes = String(d.getMinutes()).padStart(2, '0');
+          setEndTime(`${localHours}:${localMinutes}`);
+        } catch (e) {
+          console.error('Error parsing end date:', e);
         }
       }
       
@@ -187,8 +205,8 @@ export default function EditEventWizardPage() {
     if (step === 1 && isUniversityOnly && universityId === 'custom' && !manualUniversityName.trim()) {
       toast({ title: 'Missing university', description: 'Please enter your university name manually', variant: 'destructive' }); return;
     }
-    if (step === 2 && (!eventDate || !eventTime || !venue)) {
-      toast({ title: 'Missing info', description: 'Complete date, time and venue', variant: 'destructive' }); return;
+    if (step === 2 && (!eventDate || !eventTime || !endDate || !endTime || !venue)) {
+      toast({ title: 'Missing info', description: 'Complete start date, end date, time and venue', variant: 'destructive' }); return;
     }
     if (step === 3 && tiers.some(t => !t.name || !t.price || !t.quantity)) {
       toast({ title: 'Incomplete tier', description: 'Complete all tier fields name, price and quantity', variant: 'destructive' }); return;
@@ -199,7 +217,7 @@ export default function EditEventWizardPage() {
   const handleSubmit = async () => {
     try {
       const isoEventDate = new Date(`${eventDate}T${eventTime}`).toISOString();
-      const isoEndDate = new Date(new Date(isoEventDate).getTime() + 4 * 60 * 60 * 1000).toISOString();
+      const isoEndDate = new Date(`${endDate}T${endTime}`).toISOString();
       
       const formData = new FormData();
       formData.append('title', title);
@@ -456,12 +474,20 @@ export default function EditEventWizardPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Event Date</label>
+                  <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Start Date</label>
                   <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className={inputCls} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Gate Opening Time</label>
                   <input type="time" value={eventTime} onChange={e => setEventTime(e.target.value)} className={inputCls} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">End Date</label>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">End Time</label>
+                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputCls} />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -531,7 +557,8 @@ export default function EditEventWizardPage() {
                 {[
                   ['Event Title', title],
                   ['Venue', `${venue}, ${city}`],
-                  ['Date & Time', `${eventDate} at ${eventTime}`],
+                  ['Starts', `${eventDate} at ${eventTime}`],
+                  ['Ends', `${endDate} at ${endTime}`],
                   ['Category', category === 'other' ? `Custom: ${manualCategory}` : CATEGORY_OPTIONS.find(o => o.value === category)?.label || category],
                   ['Campus Lock', isUniversityOnly ? (universityId === 'custom' ? `Custom Campus: ${manualUniversityName}` : 'ACTIVE — Student only') : 'Open to everyone'],
                 ].map(([label, value]) => (
