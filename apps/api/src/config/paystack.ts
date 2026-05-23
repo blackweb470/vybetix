@@ -96,7 +96,7 @@ export const paystackClient = {
           business_name: businessName,
           settlement_bank: settlementBank,
           account_number: accountNumber,
-          percentage_charge: 10 // Platform takes 10% commission
+          percentage_charge: 0 // Platform fee is now handled per-transaction via transaction_charge
         })
       });
 

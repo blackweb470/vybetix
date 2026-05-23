@@ -61,7 +61,9 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
   };
 
   const activeTier = availableTiers.find((t) => t.id === selectedTierId);
-  const totalAmountKobo = activeTier ? activeTier.price * quantity : 0;
+  const baseAmountKobo = activeTier ? activeTier.price * quantity : 0;
+  const platformFeeKobo = activeTier ? 30000 : 0; // 300 Naira flat fee
+  const totalAmountKobo = baseAmountKobo + platformFeeKobo;
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,13 +278,23 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
         {/* Total & Action Button */}
         <div className="flex flex-col gap-4 pt-4 border-t border-zinc-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              Total Amount
-            </span>
-            <span className="text-xl font-extrabold text-[#E8441A]">
-              {formatNaira(totalAmountKobo)}
-            </span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-xs font-semibold uppercase tracking-wider">Subtotal</span>
+              <span className="text-sm font-semibold text-zinc-300">{formatNaira(baseAmountKobo)}</span>
+            </div>
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-xs font-semibold uppercase tracking-wider">Platform Fee</span>
+              <span className="text-sm font-semibold text-zinc-300">{formatNaira(platformFeeKobo)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-zinc-800/50 pt-2 mt-1">
+              <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                Total Amount
+              </span>
+              <span className="text-xl font-extrabold text-[#E8441A]">
+                {formatNaira(totalAmountKobo)}
+              </span>
+            </div>
           </div>
 
           <Button

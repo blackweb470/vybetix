@@ -89,7 +89,8 @@ export const ticketsController = {
       }
 
       // 5. Calculate total amount in kobo
-      const totalAmount = tier.price * parsedData.quantity;
+      const baseAmount = tier.price * parsedData.quantity;
+      const totalAmount = baseAmount + 30000; // Add 300 Naira platform fee
 
       // 6. Generate unique Paystack reference
       const reference = `TIX-${crypto.randomUUID()}`;
@@ -133,7 +134,7 @@ export const ticketsController = {
           callback_url: callbackUrl,
           ...(organizerProfile?.paystack_subaccount_code ? {
             subaccount: organizerProfile.paystack_subaccount_code,
-            percentage_charge: 10 // Platform takes 10% commission
+            transaction_charge: 30000 // Platform takes 300 Naira flat fee
           } : {}),
           metadata: {
             order_id: order.id,

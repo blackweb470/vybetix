@@ -27,7 +27,7 @@ const CITY_OPTIONS = [
   { value: 'port_harcourt', label: 'Port Harcourt, Rivers' },
 ];
 
-interface TicketTierForm { name: string; price: string; quantity: string; description: string; }
+interface TicketTierForm { name: string; type: 'free' | 'paid'; price: string; quantity: string; description: string; }
 
 const STEPS = [
   { num: 1, label: 'Event Info', icon: FileText },
@@ -59,18 +59,18 @@ export default function CreateEventWizardPage() {
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('lagos');
   const [tiers, setTiers] = useState<TicketTierForm[]>([
-    { name: 'Standard Gate', price: '5000', quantity: '200', description: 'General access entry' }
+    { name: 'Standard Gate', type: 'paid', price: '5000', quantity: '200', description: 'General access entry' }
   ]);
 
   const inputCls = "h-11 w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 text-sm text-zinc-100 placeholder-zinc-600 focus:border-[#E8441A] focus:outline-none focus:ring-2 focus:ring-[#E8441A]/20 transition-all";
 
-  const handleAddTier = () => setTiers([...tiers, { name: '', price: '', quantity: '', description: '' }]);
+  const handleAddTier = () => setTiers([...tiers, { name: '', type: 'paid', price: '', quantity: '', description: '' }]);
   const handleRemoveTier = (i: number) => {
     if (tiers.length === 1) { toast({ title: 'Minimum 1 tier required', variant: 'destructive' }); return; }
     setTiers(tiers.filter((_, idx) => idx !== i));
   };
   const handleTierChange = (i: number, f: keyof TicketTierForm, v: string) => {
-    const u = [...tiers]; u[i][f] = v; setTiers(u);
+    const u = [...tiers]; (u[i] as any)[f] = v; setTiers(u);
   };
 
   const handleNext = () => {
@@ -89,7 +89,7 @@ export default function CreateEventWizardPage() {
     if (step === 2 && (!eventDate || !eventTime || !venue)) {
       toast({ title: 'Missing info', description: 'Complete date, time and venue', variant: 'destructive' }); return;
     }
-    if (step === 3 && tiers.some(t => !t.name || !t.price || !t.quantity)) {
+    if (step === 3 && tiers.some(t => !t.name || (t.type === 'paid' && !t.price) || !t.quantity)) {
       toast({ title: 'Incomplete tier', description: 'Complete all tier fields', variant: 'destructive' }); return;
     }
     setStep(step + 1);
@@ -122,7 +122,12 @@ export default function CreateEventWizardPage() {
       formData.append('city', city.toLowerCase().replace(' ', '_'));
       formData.append('status', 'published');
       formData.append('ticket_tiers', JSON.stringify(
-        tiers.map(t => ({ name: t.name, price: Math.round(parseFloat(t.price) * 100), quantity: parseInt(t.quantity), description: t.description || 'Standard access' }))
+        tiers.map(t => ({ 
+          name: t.name, 
+          price: t.type === 'free' ? 0 : Math.round(parseFloat(t.price || '0') * 100), 
+          quantity: parseInt(t.quantity), 
+          description: t.description || 'Standard access' 
+        }))
       ));
       await createMutation.mutateAsync(formData);
       toast({ title: 'Event Published!', description: 'Your event is now live.', variant: 'success' });
@@ -363,18 +368,38 @@ export default function CreateEventWizardPage() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Tier Name</label>
-                        <input type="text" placeholder="VIP Pass" value={tier.name} onChange={e => handleTierChange(idx, 'name', e.target.value)} className={inputCls} />
+                    <div className="flex flex-col gap-3">
+                      <div className="flex bg-zinc-900 p-1 rounded-xl w-fit">
+                        <button 
+                          type="button"
+                          onClick={() => handleTierChange(idx, 'type', 'free')}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'free' ? 'bg-[#E8441A] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          Free
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => handleTierChange(idx, 'type', 'paid')}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'paid' ? 'bg-[#E8441A] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          Paid
+                        </button>
                       </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Price (₦)</label>
-                        <input type="number" placeholder="15000" value={tier.price} onChange={e => handleTierChange(idx, 'price', e.target.value)} className={inputCls} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Quantity</label>
-                        <input type="number" placeholder="150" value={tier.quantity} onChange={e => handleTierChange(idx, 'quantity', e.target.value)} className={inputCls} />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Tier Name</label>
+                          <input type="text" placeholder="VIP Pass" value={tier.name} onChange={e => handleTierChange(idx, 'name', e.target.value)} className={inputCls} />
+                        </div>
+                        {tier.type === 'paid' && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Price (₦)</label>
+                            <input type="number" placeholder="15000" value={tier.price} onChange={e => handleTierChange(idx, 'price', e.target.value)} className={inputCls} />
+                          </div>
+                        )}
+                        <div className={`flex flex-col gap-1.5 ${tier.type === 'free' ? 'sm:col-span-2' : ''}`}>
+                          <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Quantity</label>
+                          <input type="number" placeholder="150" value={tier.quantity} onChange={e => handleTierChange(idx, 'quantity', e.target.value)} className={inputCls} />
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -411,7 +436,9 @@ export default function CreateEventWizardPage() {
                   {tiers.map((t, i) => (
                     <div key={i} className="flex justify-between items-center p-3 rounded-xl border border-zinc-900 bg-zinc-950">
                       <span className="text-xs font-bold text-zinc-200 uppercase">{t.name} × {t.quantity}</span>
-                      <span className="text-sm font-black text-[#E8441A]">{formatNaira(parseFloat(t.price) * 100)}</span>
+                      <span className="text-sm font-black text-[#E8441A]">
+                        {t.type === 'free' ? 'FREE' : formatNaira(parseFloat(t.price || '0') * 100)}
+                      </span>
                     </div>
                   ))}
                 </div>
