@@ -34,6 +34,8 @@ function LoginContent() {
       if (targetUrl === '/') {
         if (session.user.role === 'organizer') {
           targetUrl = '/dashboard';
+        } else if (session.user.role === 'admin') {
+          targetUrl = '/admin';
         } else {
           targetUrl = '/events';
         }

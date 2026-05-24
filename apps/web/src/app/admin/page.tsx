@@ -18,7 +18,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     // Only allow admin role to access this page
     if (!user) {
-      router.push('/login');
+      router.push('/login?redirect=/admin');
       return;
     }
     
