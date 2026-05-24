@@ -53,22 +53,21 @@ export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplay
       
       {/* 1. Secure QR code window box */}
       <div 
-        className="p-4 rounded-xl bg-white border-4 border-[#E8441A]"
+        className="bg-white rounded-xl shadow-xl overflow-hidden flex items-center justify-center"
+        style={{ width: '280px', height: '280px' }}
       >
         <QRCodeSVG
           key={refreshTrigger}
           value={visiblePayload}
-          size={1024}
+          size={240}
           level="H"
           fgColor="#000000"
           bgColor="#FFFFFF"
           includeMargin={false}
           className="pointer-events-none select-none"
           style={{ 
+            shapeRendering: 'crispEdges',
             WebkitTouchCallout: 'none',
-            width: '240px',
-            height: '240px',
-            maxWidth: '100%'
           }}
         />
       </div>
