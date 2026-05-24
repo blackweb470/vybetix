@@ -59,15 +59,16 @@ export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplay
         <QRCodeSVG
           key={refreshTrigger}
           value={visiblePayload}
-          size={240}
+          size={512}
           level="H"
           fgColor="#000000"
           bgColor="#FFFFFF"
           includeMargin={false}
           className="pointer-events-none select-none"
           style={{ 
-            shapeRendering: 'crispEdges',
-            WebkitTouchCallout: 'none',
+            width: '240px',
+            height: '240px',
+            imageRendering: 'pixelated'
           }}
         />
       </div>
