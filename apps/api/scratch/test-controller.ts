@@ -1,29 +1,29 @@
-import { ticketsController } from '../src/modules/tickets/tickets.controller';
+import { authController } from '../src/modules/auth/auth.controller';
+import { Request, Response } from 'express';
 
 async function run() {
-  const req: any = {
-    user: {
-      id: '591816c5-d1c8-4d98-be54-64b683834de0',
-      email: 'akhatasebhudojoseph1@gmail.com',
+  const req = {
+    body: {
+      email: `test${Date.now()}@example.com`,
+      password: 'password123',
+      fullName: 'Test User',
+      phone: '+2348012345678',
       role: 'buyer'
-    },
-    headers: {
-      'x-device-fingerprint': 'test-fingerprint-123'
     }
-  };
+  } as Request;
 
-  const res: any = {
+  const res = {
     status: (code: number) => {
-      console.log('Status:', code);
+      console.log('STATUS:', code);
       return res;
     },
     json: (data: any) => {
-      console.log('JSON:', JSON.stringify(data, null, 2));
+      console.log('JSON:', data);
+      return res;
     }
-  };
+  } as Response;
 
-  console.log('Invoking ticketsController.getMyTickets()...');
-  await ticketsController.getMyTickets(req, res);
+  await authController.register(req, res);
 }
 
 run();

@@ -281,10 +281,14 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
               <Input
                 label="Phone Number"
-                placeholder="+2348031234567"
+                placeholder="803 123 4567"
                 required
-                value={attendee.phone}
-                onChange={(e) => updateAttendee(index, 'phone', e.target.value)}
+                prefixElement="+234"
+                value={attendee.phone.replace(/^\+234/, '').replace(/^0/, '')}
+                onChange={(e) => {
+                  const numeric = e.target.value.replace(/\D/g, '');
+                  updateAttendee(index, 'phone', numeric ? `+234${numeric}` : '');
+                }}
               />
             </div>
           ))}

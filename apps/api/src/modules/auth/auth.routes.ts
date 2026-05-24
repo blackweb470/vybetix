@@ -11,6 +11,8 @@ router.get('/google', authController.googleOAuth);
 router.post('/logout', authController.logout);
 router.get('/me', authMiddleware, authController.getCurrentUser);
 router.patch('/profile', authMiddleware, authController.updateProfile);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/update-password', authMiddleware, authController.updatePassword);
 
 export default router;
 

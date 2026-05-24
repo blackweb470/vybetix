@@ -1,35 +1,38 @@
-import { sendTicketConfirmationEmail } from '../src/utils/mailer';
+import { Resend } from 'resend';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables from parent root directory
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-async function runTest() {
-  console.log('Starting Resend test...');
-  console.log('Using RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'Present' : 'Not Found');
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+async function testResend() {
+  console.log('Testing Resend...');
+  console.log('Using API Key:', process.env.RESEND_API_KEY ? 'Set' : 'Not Set');
+  
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  console.log('From Email:', fromEmail);
+
+  const toEmail = process.argv[2];
+  if (!toEmail) {
+    console.error('Please provide an email address to send the test email to.');
+    console.error('Usage: npx ts-node test-resend.ts <your-email@example.com>');
+    process.exit(1);
+  }
+
+  console.log('Sending to:', toEmail);
 
   try {
-    const testEmail = 'akhatasebhudojoseph1@gmail.com'; // Replace with your test recipient email
-    const result = await sendTicketConfirmationEmail({
-      email: testEmail,
-      holderName: 'VibeTix Tester',
-      eventTitle: 'Lagos Summer Festival 2026',
-      venue: 'Eko Atlantic City, Lagos',
-      eventDate: new Date().toISOString(),
-      tickets: [
-        {
-          id: 'test-ticket-id-12345',
-          tierName: 'VIP Access Pass',
-          price: 2500000 // 25,000 Naira in kobo
-        }
-      ]
+    const data = await resend.emails.send({
+      from: fromEmail,
+      to: [toEmail],
+      subject: 'Test Email from Tixwave Verification',
+      html: '<p>This is a test email to verify your Resend configuration. If you receive this, it works!</p>'
     });
-
-    console.log('Resend send success!', result);
+    console.log('Success!', data);
   } catch (error) {
-    console.error('Resend test failed:', error);
+    console.error('Error:', error);
   }
 }
 
-runTest();
+testResend();

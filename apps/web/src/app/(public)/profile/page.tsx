@@ -350,15 +350,23 @@ export default function ProfilePage() {
 
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Phone Number</label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        placeholder="+2348000000000"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value)}
-                        className={inputCls}
-                      />
-                      <Phone className="absolute right-4 top-3.5 h-4 w-4 text-zinc-700" />
+                    <div className="flex rounded-xl border border-zinc-850 bg-zinc-950/60 overflow-hidden focus-within:border-[#E8441A] focus-within:ring-2 focus-within:ring-[#E8441A]/20 transition-all duration-300">
+                      <div className="flex items-center justify-center px-4 bg-zinc-900 border-r border-zinc-850 text-zinc-400 text-sm font-bold">
+                        +234
+                      </div>
+                      <div className="relative w-full">
+                        <input
+                          type="tel"
+                          placeholder="803 123 4567"
+                          value={phone.replace(/^\+234/, '').replace(/^0/, '')}
+                          onChange={(e) => {
+                            const numeric = e.target.value.replace(/\D/g, '');
+                            setPhone(numeric ? `+234${numeric}` : '');
+                          }}
+                          className="h-11 w-full bg-transparent px-4 text-sm text-zinc-100 placeholder-zinc-650 focus:outline-none"
+                        />
+                        <Phone className="absolute right-4 top-3.5 h-4 w-4 text-zinc-700 pointer-events-none" />
+                      </div>
                     </div>
                   </div>
                 </div>

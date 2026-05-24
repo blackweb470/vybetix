@@ -61,6 +61,22 @@ export function useAuth() {
     }
   });
 
+  const forgotPasswordMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const res = await api.post('/api/auth/forgot-password', { email });
+      return res.data;
+    }
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ password, token }: { password: string; token: string }) => {
+      const res = await api.post('/api/auth/update-password', { password }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return res.data;
+    }
+  });
+
   const logout = () => {
     clearAuth();
     router.push('/');
@@ -80,6 +96,10 @@ export function useAuth() {
     updateProfile: updateProfileMutation.mutateAsync,
     isUpdatingProfile: updateProfileMutation.isPending,
     updateProfileError: updateProfileMutation.error,
+    forgotPassword: forgotPasswordMutation.mutateAsync,
+    isForgottingPassword: forgotPasswordMutation.isPending,
+    resetPassword: resetPasswordMutation.mutateAsync,
+    isResettingPassword: resetPasswordMutation.isPending,
     logout
   };
 }

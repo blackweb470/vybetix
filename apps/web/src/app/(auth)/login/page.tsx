@@ -144,7 +144,12 @@ function LoginContent() {
             </div>
             
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Password</label>
+                <Link href="/forgot-password" className="text-[10px] font-bold text-[#E8441A] hover:text-[#ff6b3d] uppercase tracking-widest transition-colors">
+                  Forgot?
+                </Link>
+              </div>
               <input
                 type="password"
                 id="vybetix-login-password"

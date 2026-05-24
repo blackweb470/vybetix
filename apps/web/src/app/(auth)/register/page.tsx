@@ -30,6 +30,7 @@ function RegisterContent() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<'buyer' | 'organizer'>('buyer');
@@ -99,12 +100,25 @@ function RegisterContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !fullName || !phone || !password) {
-      toast({ title: 'Missing details', description: 'Please complete all basic profile info including password', variant: 'destructive' });
+    if (!email || !fullName || !phone || !password || !confirmPassword) {
+      toast({ title: 'Missing details', description: 'Please complete all basic profile info including password confirmation', variant: 'destructive' });
       return;
     }
-    if (!/^\+234[789][01]\d{8}$/.test(phone)) {
-      toast({ title: 'Invalid phone', description: 'Phone must be a valid Nigerian number (+234...)', variant: 'destructive' });
+    if (password !== confirmPassword) {
+      toast({ title: 'Passwords do not match', description: 'Please ensure both passwords are exactly the same', variant: 'destructive' });
+      return;
+    }
+
+    // Auto-format phone number to include +234
+    let formattedPhone = phone.trim();
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '+234' + formattedPhone.slice(1);
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+234' + formattedPhone;
+    }
+
+    if (!/^\+234[789][01]\d{8}$/.test(formattedPhone)) {
+      toast({ title: 'Invalid phone', description: 'Phone must be a valid Nigerian number (e.g. 08031234567 or +234...)', variant: 'destructive' });
       return;
     }
     if (role === 'organizer' && (!businessName || !bankName || !accountNumber || !accountName)) {
@@ -113,7 +127,7 @@ function RegisterContent() {
     }
     try {
       const payload = {
-        email, password, fullName, phone, role,
+        email, password, fullName, phone: formattedPhone, role,
         ...(role === 'organizer' ? { business_name: businessName, bank_name: bankName, account_number: accountNumber, account_name: accountName } : {})
       };
       const session = await register(payload);
@@ -208,11 +222,30 @@ function RegisterContent() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Phone Number</label>
-                <input type="tel" placeholder="+2348031234567" required value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+                <div className="flex rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden focus-within:border-[#E8441A] focus-within:ring-2 focus-within:ring-[#E8441A]/20 transition-all">
+                  <div className="flex items-center justify-center px-4 bg-zinc-900 border-r border-zinc-800 text-zinc-400 text-sm font-bold">
+                    +234
+                  </div>
+                  <input
+                    type="tel"
+                    placeholder="803 123 4567"
+                    required
+                    value={phone.replace(/^\+234/, '').replace(/^0/, '')}
+                    onChange={(e) => {
+                      const numeric = e.target.value.replace(/\D/g, '');
+                      setPhone(numeric ? `+234${numeric}` : '');
+                    }}
+                    className="h-11 w-full bg-transparent px-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
+                  />
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Password</label>
                 <input type="password" placeholder="••••••••" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Confirm Password</label>
+                <input type="password" placeholder="••••••••" minLength={6} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputCls} />
               </div>
             </div>
 

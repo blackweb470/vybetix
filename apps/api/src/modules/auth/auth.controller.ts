@@ -436,6 +436,55 @@ export const authController = {
       console.error('Update profile error:', err);
       return error(res, 'Update profile error', err.message, 500);
     }
+  },
+
+  /**
+   * Initiates a password reset email
+   */
+  forgotPassword: async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      if (!email) return error(res, 'Email required', 'Please provide an email address', 400);
+      
+      const { error: resetError } = await authClient.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`,
+      });
+      
+      if (resetError) return error(res, 'Reset failed', resetError.message, 400);
+      return success(res, null, 'Password reset email sent. Please check your inbox.');
+    } catch (err: any) {
+      console.error('Forgot password error:', err);
+      return error(res, 'Reset error', err.message, 500);
+    }
+  },
+
+  /**
+   * Updates the user's password using an authenticated session
+   */
+  updatePassword: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return error(res, 'Unauthorized', 'User context not found', 401);
+      }
+
+      const { password } = req.body;
+      if (!password || password.length < 6) {
+        return error(res, 'Invalid password', 'Password must be at least 6 characters long', 400);
+      }
+
+      const { error: updateError } = await supabase.auth.admin.updateUserById(req.user.id, {
+        password: password
+      });
+
+      if (updateError) {
+        return error(res, 'Password update failed', updateError.message, 500);
+      }
+
+      return success(res, null, 'Password updated successfully');
+    } catch (err: any) {
+      console.error('Update password error:', err);
+      return error(res, 'Update password error', err.message, 500);
+    }
   }
 };
 
