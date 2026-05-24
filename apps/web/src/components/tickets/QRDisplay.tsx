@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Badge } from '../ui/badge';
 import { RefreshCw } from 'lucide-react';
 
@@ -55,16 +55,21 @@ export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplay
       <div 
         className="p-4 rounded-xl bg-white border-4 border-[#E8441A]"
       >
-        <QRCodeCanvas
+        <QRCodeSVG
           key={refreshTrigger}
           value={visiblePayload}
-          size={240}
+          size={1024}
           level="H"
           fgColor="#000000"
           bgColor="#FFFFFF"
           includeMargin={false}
           className="pointer-events-none select-none"
-          style={{ WebkitTouchCallout: 'none' }}
+          style={{ 
+            WebkitTouchCallout: 'none',
+            width: '240px',
+            height: '240px',
+            maxWidth: '100%'
+          }}
         />
       </div>
 
