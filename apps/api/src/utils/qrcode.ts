@@ -25,7 +25,9 @@ export function generateQRToken(ticketId: string): string {
  */
 export function verifyQRToken(token: string): { ticketId: string; timestamp: number } | null {
   try {
-    const securePayload = Buffer.from(token, 'base64').toString('utf-8');
+    // Express query parsing converts '+' to ' ' in URLs. Base64 shouldn't have spaces.
+    const cleanToken = token.replace(/ /g, '+');
+    const securePayload = Buffer.from(cleanToken, 'base64').toString('utf-8');
     const parts = securePayload.split(':');
     
     if (parts.length !== 3) {
