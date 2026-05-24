@@ -7,7 +7,7 @@ import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
 import { useToast } from '../../../../components/ui/toast';
 import { formatNaira } from '../../../../lib/utils';
-import { Calendar, ArrowLeft, ArrowRight, Plus, Trash2, CheckCircle, FileText, MapPin, Ticket, GraduationCap, Disc, Upload, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
+import { Calendar, ArrowLeft, ArrowRight, Plus, Trash2, CheckCircle, FileText, MapPin, Ticket, GraduationCap, Disc, Upload, Image as ImageIcon, Link as LinkIcon, ShieldAlert } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
   { value: 'music', label: 'Music & Concerts' },
@@ -485,6 +485,17 @@ export default function CreateEventWizardPage() {
                       </span>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Organizer Liability Policy */}
+              <div className="mt-2 p-4 rounded-xl border border-[#E8441A]/20 bg-[#E8441A]/5 flex items-start gap-3">
+                <div className="mt-0.5"><ShieldAlert className="h-4 w-4 text-[#E8441A]" /></div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#E8441A]">Organizer Liability Policy</span>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    By publishing this event, you acknowledge that you are fully responsible for the successful execution of all event activities hosted on this platform. Vybetix acts solely as a ticketing infrastructure provider and is not liable for event cancellations, venue disputes, or attendee grievances.
+                  </p>
                 </div>
               </div>
             </div>
