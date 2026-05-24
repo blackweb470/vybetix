@@ -459,25 +459,37 @@ export default function LandingPage() {
             </div>
 
             <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
-                <Zap className="h-5 w-5" />
+              <div className="w-10 h-10 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A] shrink-0">
+                <Lock className="h-5 w-5" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Verified Organizers Only</h4>
+                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Device Locked Tickets</h4>
                 <p className="text-zinc-550 text-xs font-light leading-relaxed">
-                  We check banking credentials and identity details for every organizer to ensure you buy tickets for legitimate concerts.
+                  For extreme fraud protection, tickets are permanently locked to the exact mobile device they are first opened on.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Anti-Screenshot Tech</h4>
+                <p className="text-zinc-550 text-xs font-light leading-relaxed">
+                  Advanced browser protections and dynamic rotating UI elements make screenshotting and screen-recording tickets completely useless at the gate.
                 </p>
               </div>
             </div>
 
             <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
               <div className="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                <HelpCircle className="h-5 w-5" />
+                <Cpu className="h-5 w-5" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Realtime Payouts & Gate</h4>
+                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Cryptographic Engine</h4>
                 <p className="text-zinc-550 text-xs font-light leading-relaxed">
-                  Gate workers scan tickets using secure cryptographic checks in under 1 second. Fast settlements and auto Paystack integrations.
+                  Gate workers scan tickets powered by HMAC-SHA256 digital seals in under 1 second. Instantly detecting fakes offline.
                 </p>
               </div>
             </div>
