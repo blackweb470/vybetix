@@ -246,6 +246,15 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
         {/* 3. Ticket Holder registration details */}
         <div className="flex flex-col gap-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-yellow-200 text-xs">
+            <div className="flex flex-col gap-1">
+              <p className="font-bold uppercase tracking-wider text-[10px] text-yellow-400">⚠️ Anti-Fraud Device Lock</p>
+              <p className="text-zinc-400 text-[11px] leading-relaxed">
+                Tickets are permanently locked to the first phone they are opened on. If buying for friends, they must log in on their own phones to claim their tickets. Do not open a friend's ticket on your phone unless you plan to scan them in at the gate together.
+              </p>
+            </div>
+          </div>
+
           {attendees.map((attendee, index) => (
             <div key={index} className="flex flex-col gap-4 p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/20">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#E8441A] flex items-center gap-2">
