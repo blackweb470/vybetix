@@ -29,7 +29,7 @@ export default function AdminDashboard() {
 
     const fetchStats = async () => {
       try {
-        const response = await api.get('/admin/stats');
+        const response = await api.get('/api/admin/stats');
         setStats(response.data.data);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to load platform statistics');
