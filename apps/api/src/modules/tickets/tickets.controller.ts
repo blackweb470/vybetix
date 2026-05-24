@@ -353,11 +353,27 @@ export const ticketsController = {
         return success(res, { status: 'INVALID', message: 'Ticket record not found' });
       }
 
+      const event = ticket.ticket_tiers.events;
+      const now = new Date();
+      const eventEndDate = new Date(event.end_date);
+
+      if (now > eventEndDate) {
+        return success(res, { 
+          status: 'EXPIRED', 
+          message: 'The event for this ticket has already ended.' 
+        });
+      }
+
       if (ticket.status === 'used') {
         return success(res, {
-          status: 'ALREADY_USED',
+          status: 'VALID',
+          is_re_entry: true,
           scannedAt: ticket.scanned_at,
-          holderName: ticket.holder_name
+          ticketId: ticket.id,
+          holderName: ticket.holder_name,
+          tierName: ticket.ticket_tiers.name,
+          eventTitle: event.title,
+          message: 'Ticket is valid (RE-ENTRY)'
         });
       }
 

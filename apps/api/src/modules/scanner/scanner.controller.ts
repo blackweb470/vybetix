@@ -39,7 +39,7 @@ export const scannerController = {
           ticket_tiers:ticket_tiers!inner(
             name,
             event_id,
-            events:events(title, organizer_id)
+            events:events(title, organizer_id, end_date)
           )
         `)
         .eq('id', decoded.ticketId)
@@ -60,7 +60,18 @@ export const scannerController = {
         return error(res, 'Forbidden', 'You are not authorized to scan tickets for this event', 403);
       }
 
-      // 4. Check status constraints
+      // 4. Check status constraints & Expiration
+      const eventEndDate = new Date(ticket.ticket_tiers.events.end_date);
+      if (new Date() > eventEndDate) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            status: 'EXPIRED',
+            message: 'This event has officially ended. Tickets can no longer be scanned.'
+          }
+        });
+      }
+
       const isReEntry = ticket.status === 'used';
 
       if (ticket.status === 'cancelled') {

@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthStore } from '../../store/authStore';
 import { Card } from '../../components/ui/card';
 import { formatNaira } from '../../lib/utils';
-import api from '../../lib/api';
+import { api } from '../../lib/api';
 import { ShieldAlert, Users, Ticket, Calendar, DollarSign, Activity, Settings, LogOut, ArrowRight, TrendingUp, AlertTriangle } from 'lucide-react';
 
 export default function AdminDashboard() {
