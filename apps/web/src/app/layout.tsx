@@ -20,8 +20,57 @@ const outfitFont = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'Vybetix - Nigeria\'s Smartest Event Ticketing Platform',
-  description: 'Discover and buy tickets for live concerts, campus shows, festivals, and more across Nigeria. Every ticket is HMAC-sealed and fraud-proof.',
+  metadataBase: new URL('https://vybetix.com'),
+  title: {
+    default: 'Vybetix | The Smartest Event Ticketing Platform in Nigeria',
+    template: '%s | Vybetix'
+  },
+  description: 'Buy and sell tickets for live concerts, campus shows, tech events, and festivals in Nigeria. The most secure ticketing platform with fraud-proof HMAC-sealed tickets.',
+  keywords: ['ticketing platform', 'event tickets Nigeria', 'buy event tickets', 'sell event tickets', 'concert tickets', 'campus shows', 'fraud-proof tickets', 'online ticketing', 'event management', 'Vybetix'],
+  authors: [{ name: 'Vybetix' }],
+  creator: 'Vybetix',
+  publisher: 'Vybetix',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  openGraph: {
+    title: 'Vybetix | The Smartest Event Ticketing Platform in Nigeria',
+    description: 'Buy and sell tickets for live concerts, campus shows, tech events, and festivals in Nigeria. The most secure ticketing platform with fraud-proof HMAC-sealed tickets.',
+    url: 'https://vybetix.com',
+    siteName: 'Vybetix',
+    locale: 'en_NG',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Vybetix | The Smartest Event Ticketing Platform in Nigeria',
+    description: 'Buy and sell tickets for live concerts, campus shows, tech events, and festivals in Nigeria.',
+    creator: '@vybetix',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  icons: {
+    icon: [
+      { url: '/favicons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicons/favicon.ico', sizes: 'any' },
+    ],
+    apple: [
+      { url: '/favicons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  manifest: '/favicons/site.webmanifest',
 };
 
 export default function RootLayout({
