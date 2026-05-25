@@ -246,34 +246,34 @@ export const paymentsController = {
         return error(res, 'Verification error', 'Order transaction reference parameter is missing', 400);
       }
 
-      // 1. Parallelize order fetch and Paystack verify
-      const [orderRes, paystackRes] = await Promise.allSettled([
-        supabase.from('orders').select('*, events(*)').eq('paystack_reference', reference).single(),
-        paystackClient.verifyTransaction(reference)
-      ]);
-
-      const order = orderRes.status === 'fulfilled' ? orderRes.value.data : null;
-      const queryError = orderRes.status === 'fulfilled' ? orderRes.value.error : null;
+      // 1. Fast check: See if webhook already processed this order
+      const { data: order, error: queryError } = await supabase
+        .from('orders')
+        .select('*, events(*)')
+        .eq('paystack_reference', reference)
+        .single();
 
       if (queryError || !order) {
         return error(res, 'Order missing', 'No matching order details found in Vybetix registries', 404);
       }
 
-      // If order is already successful in our DB, return immediately
+      // If webhook already processed it, return instantly!
       if (order.paystack_status === 'success') {
         const { data: tickets } = await supabase
           .from('tickets')
           .select('*, ticket_tiers(name, price)')
           .eq('order_id', order.id);
 
-        return success(res, { order, tickets }, 'Payment successfully verified!');
+        return success(res, { order, tickets }, 'Payment successfully verified via webhook!');
       }
 
-      // 2. Check Paystack verification result
-      if (paystackRes.status === 'rejected') {
+      // 2. Fallback: Call Paystack API only if the webhook hasn't updated it yet
+      let paystackData;
+      try {
+        paystackData = await paystackClient.verifyTransaction(reference);
+      } catch (err) {
         return error(res, 'Verification failed', 'Could not reach Paystack verification server', 500);
       }
-      const paystackData = paystackRes.value;
 
       if (paystackData.status === 'success') {
         // Update order status in database
