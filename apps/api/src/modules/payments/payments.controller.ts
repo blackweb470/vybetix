@@ -13,35 +13,28 @@ const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || 'sk_test_mock_secret_
  * Helper to create ticket instances, update capacities, generate base64 QR codes,
  * and dispatch confirmation emails.
  */
-async function fulfillOrder(orderId: string, tierId: string, attendees: { name: string, email: string, phone: string }[]) {
+export async function fulfillOrder(orderId: string, tierId: string, attendees: { name: string, email: string, phone: string }[]) {
   try {
-    // 1. Fetch order details to double check status and retrieve event info
-    const { data: order } = await supabase
-      .from('orders')
-      .select('*, events(*)')
-      .eq('id', orderId)
-      .single();
+    // 1. Parallelize order, tier, and existing tickets checks
+    const [orderRes, tierRes, existingTicketsRes] = await Promise.all([
+      supabase.from('orders').select('*, events(*)').eq('id', orderId).single(),
+      supabase.from('ticket_tiers').select('*').eq('id', tierId).single(),
+      supabase.from('tickets').select('id').eq('order_id', orderId)
+    ]);
+
+    const order = orderRes.data;
+    const tier = tierRes.data;
+    const existingTickets = existingTicketsRes.data;
 
     if (!order) {
       throw new Error(`Order #${orderId} not found during fulfillment`);
     }
-
-    const { data: tier } = await supabase
-      .from('ticket_tiers')
-      .select('*')
-      .eq('id', tierId)
-      .single();
 
     if (!tier) {
       throw new Error(`Ticket tier #${tierId} not found during fulfillment`);
     }
 
     // 2. Double-check if tickets have already been generated for this order to prevent duplication
-    const { data: existingTickets } = await supabase
-      .from('tickets')
-      .select('id')
-      .eq('order_id', orderId);
-
     if (existingTickets && existingTickets.length > 0) {
       console.log(`[Order Fulfill] Tickets already generated for Order #${orderId}. Skipping fulfillment.`);
       return;
@@ -100,27 +93,30 @@ async function fulfillOrder(orderId: string, tierId: string, attendees: { name: 
       console.error('[Warning] Failed to update ticket tier sales counter:', tierUpdateError);
     }
 
-    // 6. Send transactional emails & WhatsApp notifications
-    for (const [email, data] of emailsToSend.entries()) {
-      try {
-        await sendTicketConfirmationEmail({
-          email: email,
-          holderName: data.name,
-          eventTitle: order.events.title,
-          venue: order.events.venue,
-          eventDate: order.events.event_date,
-          tickets: data.tickets
-        });
-      } catch (mailError) {
-        console.error(`[Fulfillment Warning] Email dispatch failed for ${email}:`, mailError);
-      }
+    // 6. Send transactional emails & WhatsApp notifications asynchronously (fire-and-forget)
+    // We don't await this so that the API responds instantly
+    (async () => {
+      for (const [email, data] of emailsToSend.entries()) {
+        try {
+          await sendTicketConfirmationEmail({
+            email: email,
+            holderName: data.name,
+            eventTitle: order.events.title,
+            venue: order.events.venue,
+            eventDate: order.events.event_date,
+            tickets: data.tickets
+          });
+        } catch (mailError) {
+          console.error(`[Fulfillment Warning] Email dispatch failed for ${email}:`, mailError);
+        }
 
-      try {
-        await sendTicketWhatsAppNotification(data.phone, data.name, order.events.title);
-      } catch (waError) {
-        console.error(`[Fulfillment Warning] WhatsApp dispatch failed for ${data.phone}:`, waError);
+        try {
+          await sendTicketWhatsAppNotification(data.phone, data.name, order.events.title);
+        } catch (waError) {
+          console.error(`[Fulfillment Warning] WhatsApp dispatch failed for ${data.phone}:`, waError);
+        }
       }
-    }
+    })().catch(err => console.error("[Fulfillment Warning] Background notification loop failed:", err));
 
     console.log(`[Order Fulfill] Success! Fulfilling completed for Order #${orderId}`);
   } catch (err: any) {
@@ -250,12 +246,14 @@ export const paymentsController = {
         return error(res, 'Verification error', 'Order transaction reference parameter is missing', 400);
       }
 
-      // 1. Fetch order details from database
-      const { data: order, error: queryError } = await supabase
-        .from('orders')
-        .select('*, events(*)')
-        .eq('paystack_reference', reference)
-        .single();
+      // 1. Parallelize order fetch and Paystack verify
+      const [orderRes, paystackRes] = await Promise.allSettled([
+        supabase.from('orders').select('*, events(*)').eq('paystack_reference', reference).single(),
+        paystackClient.verifyTransaction(reference)
+      ]);
+
+      const order = orderRes.status === 'fulfilled' ? orderRes.value.data : null;
+      const queryError = orderRes.status === 'fulfilled' ? orderRes.value.error : null;
 
       if (queryError || !order) {
         return error(res, 'Order missing', 'No matching order details found in Vybetix registries', 404);
@@ -271,8 +269,11 @@ export const paymentsController = {
         return success(res, { order, tickets }, 'Payment successfully verified!');
       }
 
-      // 2. Query Paystack directly to verify reference
-      const paystackData = await paystackClient.verifyTransaction(reference);
+      // 2. Check Paystack verification result
+      if (paystackRes.status === 'rejected') {
+        return error(res, 'Verification failed', 'Could not reach Paystack verification server', 500);
+      }
+      const paystackData = paystackRes.value;
 
       if (paystackData.status === 'success') {
         // Update order status in database

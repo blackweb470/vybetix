@@ -22,6 +22,7 @@ const upload = multer({
 });
 
 router.get('/universities', eventsController.getUniversities);
+router.get('/staff/assigned', authMiddleware, requireRole(['gate_staff', 'admin']), eventsController.getAssignedEvents);
 router.get('/', eventsController.list);
 
 // Organizer and Admin operations — must be before /:id to avoid route conflicts
@@ -29,6 +30,9 @@ router.post('/upload-cover', authMiddleware, requireRole(['organizer', 'admin'])
 router.post('/', authMiddleware, requireRole(['organizer', 'admin']), upload.none(), eventsController.create);
 router.put('/:id', authMiddleware, requireRole(['organizer', 'admin']), upload.none(), eventsController.update);
 router.delete('/:id', authMiddleware, requireRole(['organizer', 'admin']), eventsController.delete);
+router.post('/:id/staff', authMiddleware, requireRole(['organizer', 'admin']), eventsController.addStaff);
+router.get('/:id/staff', authMiddleware, requireRole(['organizer', 'admin']), eventsController.getStaff);
+router.delete('/:id/staff/:staffId', authMiddleware, requireRole(['organizer', 'admin']), eventsController.removeStaff);
 
 // Public route — must be after specific routes to avoid eating them
 router.get('/:id', eventsController.getById);

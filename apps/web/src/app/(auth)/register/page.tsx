@@ -8,7 +8,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../components/ui/toast';
 import { api } from '../../../lib/api';
 import Link from 'next/link';
-import { Disc, UserPlus, Ticket, Building2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Disc, UserPlus, Ticket, Building2, CheckCircle2, AlertCircle, Eye, EyeOff, Mail } from 'lucide-react';
 import Image from 'next/image';
 import { SearchableSelect } from '../../../components/ui/searchable-select';
 
@@ -31,7 +31,9 @@ function RegisterContent() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<'buyer' | 'organizer'>('buyer');
@@ -99,6 +101,19 @@ function RegisterContent() {
     return () => clearTimeout(timeoutId);
   }, [bankName, accountNumber]);
 
+  const [successData, setSuccessData] = useState<{ targetUrl: string, countdown: number } | null>(null);
+
+  useEffect(() => {
+    if (successData && successData.countdown > 0) {
+      const timer = setTimeout(() => {
+        setSuccessData({ ...successData, countdown: successData.countdown - 1 });
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (successData && successData.countdown === 0) {
+      window.location.href = successData.targetUrl;
+    }
+  }, [successData]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !fullName || !phone || !password || !confirmPassword) {
@@ -132,9 +147,7 @@ function RegisterContent() {
         ...(role === 'organizer' ? { business_name: businessName, bank_name: bankName, account_number: accountNumber, account_name: accountName } : {})
       };
       const session = await register(payload);
-      toast({ title: 'Account Created!', description: `Welcome, ${session.user.full_name}`, variant: 'success' });
-      const targetUrl = role === 'organizer' ? '/dashboard' : (redirectUrl === '/' ? '/events' : redirectUrl);
-      window.location.href = targetUrl;
+      setSuccessData({ targetUrl: '/login', countdown: 5 });
     } catch (err: any) {
       toast({ title: 'Signup failed', description: err.response?.data?.message || err.message || 'Email might already be registered', variant: 'destructive' });
     }
@@ -144,6 +157,39 @@ function RegisterContent() {
 
   return (
     <div className="flex-1 flex min-h-screen bg-[#08080C] font-outfit">
+
+      {/* SUCCESS POPUP MODAL */}
+      {successData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 transition-all duration-500">
+          <div className="bg-zinc-950 border border-zinc-800 p-8 rounded-3xl max-w-sm w-full flex flex-col items-center text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            {/* Background glowing effect */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-blue-500/20 blur-[60px] pointer-events-none rounded-full" />
+            
+            <div className="h-16 w-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-6 relative z-10">
+              <Mail className="h-8 w-8 text-blue-500" />
+            </div>
+            
+            <h3 className="text-2xl font-black text-white font-syne mb-2 relative z-10">Verify Your Email</h3>
+            <p className="text-zinc-400 text-sm mb-6 relative z-10">
+              We've sent a verification link to <span className="text-white font-bold">{email}</span>. 
+              Please check your inbox (and spam folder) to verify your account before continuing.
+            </p>
+            
+            <div className="w-full bg-zinc-900 rounded-xl p-4 flex flex-col gap-2 relative z-10">
+              <span className="text-xs text-zinc-500 uppercase font-bold tracking-wider">Redirecting to login in</span>
+              <span className="text-4xl font-black text-white">{successData.countdown}s</span>
+            </div>
+            
+            <button 
+              type="button"
+              onClick={() => window.location.href = '/login'}
+              className="mt-6 w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider transition-colors relative z-10"
+            >
+              Go to Login
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* LEFT brand panel */}
       <div
@@ -241,11 +287,21 @@ function RegisterContent() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Password</label>
-                <input type="password" placeholder="••••••••" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} />
+                <div className="relative">
+                  <input type={showPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputCls} pr-12`} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-0 h-11 px-4 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none">
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Confirm Password</label>
-                <input type="password" placeholder="••••••••" minLength={6} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputCls} />
+                <div className="relative">
+                  <input type={showConfirmPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`${inputCls} pr-12`} />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-0 top-0 h-11 px-4 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none">
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -69,7 +69,7 @@ export default function EventDetailPage() {
         <h2 className="text-xl font-black uppercase tracking-tight text-white font-syne">Event Not Found</h2>
         <p className="text-sm text-zinc-500 max-w-sm">This event may have been removed or does not exist.</p>
         <button
-          onClick={() => router.push('/events')}
+          onClick={() => window.location.href = '/events'}
           className="mt-2 px-6 py-2.5 rounded-xl bg-[#E8441A] text-white text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all"
         >
           Back to Events
@@ -101,11 +101,11 @@ export default function EventDetailPage() {
     if (isEnded) return; // already blocked by the UI, but guard anyway
     if (!isAuthenticated) {
       toast({ title: 'Sign in required', description: 'Please log in to purchase tickets', variant: 'destructive' });
-      router.push(`/login?redirect=${encodeURIComponent(`/events/${id}`)}`);
+      window.location.href = `/login?redirect=${encodeURIComponent(`/events/${id}`)}`;
       return;
     }
-    if (user?.role !== 'buyer') {
-      toast({ title: 'Buyer account required', description: 'Only Buyer accounts can purchase tickets.', variant: 'destructive' });
+    if (user?.role !== 'buyer' && user?.role !== 'gate_staff') {
+      toast({ title: 'Buyer account required', description: 'Only Buyer or Gate Staff accounts can purchase tickets.', variant: 'destructive' });
       return;
     }
     if (event.is_university_only && user?.email && !user.email.endsWith('.edu.ng')) {
@@ -128,7 +128,7 @@ export default function EventDetailPage() {
         {/* Back and Share buttons overlaid on hero */}
         <div className="absolute top-6 left-6 flex items-center gap-3">
           <button
-            onClick={() => router.push('/events')}
+            onClick={() => window.location.href = '/events'}
             className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/80 hover:text-white bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 transition-all hover:bg-black/50"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -213,50 +213,50 @@ export default function EventDetailPage() {
                   </div>
                 </div>
               ) : (
-              <div className="flex flex-col gap-3">
-                {activeTiers.map((tier) => {
-                  const soldCount = tier.sold || 0;
-                  const remaining = tier.quantity - soldCount;
-                  const isSoldOut = soldCount >= tier.quantity;
-                  const pctSold = tier.quantity > 0 ? Math.min(100, Math.round((soldCount / tier.quantity) * 100)) : 0;
-                  return (
-                    <div key={tier.id} className="p-4 rounded-2xl border border-zinc-900 bg-zinc-950/40 flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-black text-white uppercase tracking-wide">{tier.name}</span>
-                          <span className="text-xs text-zinc-500">{tier.description || 'Standard entry gate access'}</span>
+                <div className="flex flex-col gap-3">
+                  {activeTiers.map((tier) => {
+                    const soldCount = tier.sold || 0;
+                    const remaining = tier.quantity - soldCount;
+                    const isSoldOut = soldCount >= tier.quantity;
+                    const pctSold = tier.quantity > 0 ? Math.min(100, Math.round((soldCount / tier.quantity) * 100)) : 0;
+                    return (
+                      <div key={tier.id} className="p-4 rounded-2xl border border-zinc-900 bg-zinc-950/40 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-black text-white uppercase tracking-wide">{tier.name}</span>
+                            <span className="text-xs text-zinc-500">{tier.description || 'Standard entry gate access'}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-base font-black text-[#E8441A]">
+                              {tier.price === 0 ? 'FREE' : formatNaira(tier.price)}
+                            </span>
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${isSoldOut ? 'bg-red-950/40 text-red-400 border border-red-900/40' : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40'}`}>
+                              {isSoldOut ? 'Sold Out' : 'Available'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-base font-black text-[#E8441A]">
-                            {tier.price === 0 ? 'FREE' : formatNaira(tier.price)}
-                          </span>
-                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${isSoldOut ? 'bg-red-950/40 text-red-400 border border-red-900/40' : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40'}`}>
-                            {isSoldOut ? 'Sold Out' : 'Available'}
+                        {/* Sold progress bar + remaining */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1 bg-zinc-900 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#E8441A]/60 rounded-full" style={{ width: `${pctSold}%` }} />
+                          </div>
+                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest whitespace-nowrap">
+                            {soldCount}/{tier.quantity} sold
                           </span>
                         </div>
+                        {/* Remaining tickets */}
+                        {!isSoldOut && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                              <span className="text-emerald-400 font-black">{remaining}</span>
+                              {remaining === 1 ? 'ticket left' : 'tickets left'}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      {/* Sold progress bar + remaining */}
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1 bg-zinc-900 rounded-full overflow-hidden">
-                          <div className="h-full bg-[#E8441A]/60 rounded-full" style={{ width: `${pctSold}%` }} />
-                        </div>
-                        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest whitespace-nowrap">
-                          {soldCount}/{tier.quantity} sold
-                        </span>
-                      </div>
-                      {/* Remaining tickets */}
-                      {!isSoldOut && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] font-black uppercase tracking-widest text-zinc-400">
-                            <span className="text-emerald-400 font-black">{remaining}</span>
-                            {remaining === 1 ? 'ticket left' : 'tickets left'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
@@ -285,8 +285,8 @@ export default function EventDetailPage() {
                 <div>
                   <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Tickets From</p>
                   <p className="text-2xl font-black text-white font-syne mt-1">
-                    {hasFreeTier && hasPaidTier 
-                      ? 'Free & Paid Options' 
+                    {hasFreeTier && hasPaidTier
+                      ? 'Free & Paid Options'
                       : (hasPaidTier ? formatNaira(startingPrice) : 'FREE ENTRY')}
                   </p>
                 </div>

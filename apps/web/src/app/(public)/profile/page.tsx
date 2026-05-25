@@ -142,7 +142,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (mounted && !isAuthenticated) {
-      router.push(`/login?redirect=/profile`);
+      window.location.href = `/login?redirect=/profile`;
     }
   }, [mounted, isAuthenticated, router]);
 
@@ -239,14 +239,14 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row gap-3">
             {me.role === 'organizer' ? (
               <button 
-                onClick={() => router.push('/dashboard')}
+                onClick={() => window.location.href = '/dashboard'}
                 className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-zinc-850 hover:border-[#E8441A]/30 hover:text-[#E8441A] transition-all bg-zinc-950/60 text-xs font-black uppercase tracking-widest text-zinc-400"
               >
                 <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
               </button>
             ) : (
               <button 
-                onClick={() => router.push('/tickets')}
+                onClick={() => window.location.href = '/tickets'}
                 className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-zinc-850 hover:border-[#E8441A]/30 hover:text-[#E8441A] transition-all bg-zinc-950/60 text-xs font-black uppercase tracking-widest text-zinc-400"
               >
                 <Ticket className="h-3.5 w-3.5" /> My Tickets

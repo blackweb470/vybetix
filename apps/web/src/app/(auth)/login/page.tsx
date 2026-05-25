@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../components/ui/toast';
 import Link from 'next/link';
-import { Disc, LogIn, ShieldCheck, Zap, Lock, ArrowRight } from 'lucide-react';
+import { Disc, LogIn, ShieldCheck, Zap, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import Image from 'next/image';
 
 function LoginContent() {
@@ -18,6 +18,7 @@ function LoginContent() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const redirectUrl = searchParams.get('redirect') || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,17 +150,26 @@ function LoginContent() {
                   Forgot?
                 </Link>
               </div>
-              <input
-                type="password"
-                id="vybetix-login-password"
-                name="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-12 w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 text-sm text-zinc-100 placeholder-zinc-600 focus:border-[#E8441A] focus:outline-none focus:ring-2 focus:ring-[#E8441A]/20 transition-all backdrop-blur-sm"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="vybetix-login-password"
+                  name="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-12 w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 pr-12 text-sm text-zinc-100 placeholder-zinc-600 focus:border-[#E8441A] focus:outline-none focus:ring-2 focus:ring-[#E8441A]/20 transition-all backdrop-blur-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-0 top-0 h-12 px-4 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <button

@@ -18,10 +18,10 @@ export default function OrganizerLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (mounted) {
       if (!isAuthenticated) {
-        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
       } else if (user?.role !== 'organizer') {
         // Non-organizer account forbidden
-        router.push('/');
+        window.location.href = '/';
       }
     }
   }, [mounted, isAuthenticated, user, router, pathname]);

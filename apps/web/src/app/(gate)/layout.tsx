@@ -18,15 +18,15 @@ export default function GateLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (mounted) {
       if (!isAuthenticated) {
-        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
-      } else if (user?.role !== 'organizer' && user?.role !== 'admin') {
+        window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
+      } else if (user?.role !== 'organizer' && user?.role !== 'admin' && user?.role !== 'gate_staff') {
         // Forbidden to non-staff
-        router.push('/');
+        window.location.href = '/';
       }
     }
   }, [mounted, isAuthenticated, user, router, pathname]);
 
-  if (!mounted || !isAuthenticated || (user?.role !== 'organizer' && user?.role !== 'admin')) {
+  if (!mounted || !isAuthenticated || (user?.role !== 'organizer' && user?.role !== 'admin' && user?.role !== 'gate_staff')) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#0D0D0D] py-36">
         <Disc className="h-10 w-10 text-[#E8441A] animate-spin" />

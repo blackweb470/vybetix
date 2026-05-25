@@ -63,7 +63,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
   const activeTier = availableTiers.find((t) => t.id === selectedTierId);
   const baseAmountKobo = activeTier ? activeTier.price * quantity : 0;
-  const platformFeeKobo = activeTier ? 30000 : 0; // 300 Naira flat fee
+  const platformFeeKobo = (activeTier && activeTier.price > 0) ? 30000 : 0; // 300 Naira flat fee ONLY for paid tickets
   const totalAmountKobo = baseAmountKobo + platformFeeKobo;
 
   const handleCheckout = async (e: React.FormEvent) => {
@@ -101,6 +101,18 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
         attendees
       });
 
+      if (orderSession.amount === 0 || !orderSession.accessCode) {
+        toast({
+          title: 'Tickets Claimed!',
+          description: 'Your free tickets have been successfully generated.',
+          variant: 'success'
+        });
+        setIsPaystackLoading(false);
+        onClose();
+        window.location.href = '/tickets';
+        return;
+      }
+
       toast({
         title: 'Checkout initialized',
         description: 'Connecting to Paystack checkout portal...',
@@ -136,7 +148,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
           } finally {
             setIsPaystackLoading(false);
             onClose();
-            router.push('/tickets');
+            window.location.href = '/tickets';
           }
         },
         onCancel: () => {
@@ -320,8 +332,14 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
             isLoading={purchaseMutation.isPending || isPaystackLoading}
             className="w-full flex items-center justify-center gap-2 uppercase tracking-widest text-xs h-12"
           >
-            <CreditCard className="h-4.5 w-4.5" />
-            Pay with Paystack
+            {totalAmountKobo === 0 ? (
+              <>Claim Free Tickets</>
+            ) : (
+              <>
+                <CreditCard className="h-4.5 w-4.5" />
+                Pay with Paystack
+              </>
+            )}
           </Button>
         </div>
 

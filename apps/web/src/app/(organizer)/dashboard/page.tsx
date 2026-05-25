@@ -16,7 +16,7 @@ export default function OrganizerDashboardPage() {
   const [activeTab, setActiveTab] = React.useState<'live' | 'past'>('live');
 
   const handleShare = (slug: string) => {
-    const url = `${window.location.origin}/events/${slug}`;
+    const url = `${window.location.origin}/events/${slug}`
     navigator.clipboard.writeText(url);
     toast({ title: 'Link Copied!', description: 'Event link copied to clipboard.', variant: 'success' });
   };
@@ -169,13 +169,18 @@ export default function OrganizerDashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:flex md:items-center gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap md:items-center gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0">
                     <button onClick={() => handleShare(event.slug)} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-[#E8441A] hover:border-[#E8441A] hover:text-white transition-all text-[10px] font-black uppercase tracking-widest w-full md:w-auto">
                       <Share2 className="h-3.5 w-3.5" />Share
                     </button>
                     <Link href={`/scan/${event.id}`} className="w-full md:w-auto">
                       <button className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-[#E8441A] hover:border-[#E8441A] hover:text-white transition-all text-[10px] font-black uppercase tracking-widest w-full">
                         <QrCode className="h-3.5 w-3.5" />Gate
+                      </button>
+                    </Link>
+                    <Link href={`/events/${event.id}/staff`} className="w-full md:w-auto">
+                      <button className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-[#E8441A] hover:border-[#E8441A] hover:text-white transition-all text-[10px] font-black uppercase tracking-widest w-full">
+                        <Users className="h-3.5 w-3.5" />Staff
                       </button>
                     </Link>
                     <Link href={`/events/${event.slug}/edit`} className="w-full md:w-auto">

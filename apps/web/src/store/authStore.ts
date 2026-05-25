@@ -7,7 +7,7 @@ export interface UserProfile {
   full_name: string;
   phone?: string;
   avatar_url?: string;
-  role: 'buyer' | 'organizer' | 'admin';
+  role: 'buyer' | 'organizer' | 'admin' | 'gate_staff';
   is_banned: boolean;
   created_at: string;
 }

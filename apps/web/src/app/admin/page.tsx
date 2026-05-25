@@ -18,12 +18,12 @@ export default function AdminDashboard() {
   useEffect(() => {
     // Only allow admin role to access this page
     if (!user) {
-      router.push('/login?redirect=/admin');
+      window.location.href = '/login?redirect=/admin';
       return;
     }
     
     if (user.role !== 'admin') {
-      router.push('/dashboard');
+      window.location.href = '/dashboard';
       return;
     }
 
@@ -59,7 +59,7 @@ export default function AdminDashboard() {
           <ShieldAlert className="h-8 w-8 text-red-500 mx-auto mb-4" />
           <h2 className="text-white font-syne text-lg font-bold uppercase tracking-wider mb-2">Access Denied</h2>
           <p className="text-zinc-400 text-sm">{error}</p>
-          <button onClick={() => router.push('/dashboard')} className="mt-6 px-6 py-2.5 bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-zinc-700 transition-colors">
+          <button onClick={() => window.location.href = '/dashboard'} className="mt-6 px-6 py-2.5 bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-zinc-700 transition-colors">
             Return to Safety
           </button>
         </div>
@@ -90,7 +90,7 @@ export default function AdminDashboard() {
               <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mt-0.5">God Mode Activated</p>
             </div>
           </div>
-          <button onClick={() => router.push('/dashboard')} className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors">
+          <button onClick={() => window.location.href = '/dashboard'} className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors">
             <LogOut className="h-4 w-4" />
           </button>
         </div>

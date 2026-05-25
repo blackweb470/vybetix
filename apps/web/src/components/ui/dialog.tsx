@@ -45,7 +45,7 @@ export function Dialog({ isOpen, onClose, title, children, className }: DialogPr
         {/* Dialog Header Block */}
         <div className="flex items-center justify-between border-b border-zinc-800 pb-4 mb-4">
           {title && (
-            <h2 className="text-lg font-bold text-zinc-100 uppercase tracking-wide font-syne text-[#E8441A]">
+            <h2 className="text-lg font-bold uppercase tracking-wide font-syne text-[#E8441A]">
               {title}
             </h2>
           )}

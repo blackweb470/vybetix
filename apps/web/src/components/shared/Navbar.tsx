@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/button';
 import { Avatar } from '../ui/avatar';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
-import { Ticket, LayoutDashboard, User, LogOut, ChevronDown, Menu, X } from 'lucide-react';
+import { Ticket, LayoutDashboard, User, LogOut, ChevronDown, Menu, X, QrCode } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '../../lib/utils';
 
@@ -92,7 +92,7 @@ export default function Navbar() {
 
               {/* Action items list */}
               <div className="p-1">
-                {user.role === 'buyer' && (
+                {(user.role === 'buyer' || user.role === 'gate_staff') && (
                   <Link href="/tickets">
                     <DropdownMenuItem>
                       <Ticket className="mr-2.5 h-4 w-4 text-[#E8441A]" />
@@ -116,6 +116,15 @@ export default function Navbar() {
                       </DropdownMenuItem>
                     </Link>
                   </>
+                )}
+
+                {(user.role === 'gate_staff' || user.role === 'organizer' || user.role === 'admin') && (
+                  <Link href="/scan">
+                    <DropdownMenuItem>
+                      <QrCode className="mr-2.5 h-4 w-4 text-[#E8441A]" />
+                      Scan Portal
+                    </DropdownMenuItem>
+                  </Link>
                 )}
 
                 {user.role === 'admin' && (

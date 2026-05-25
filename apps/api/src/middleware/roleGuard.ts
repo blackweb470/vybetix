@@ -5,7 +5,7 @@ import { AuthRequest } from './auth';
  * Middleware factory that restricts endpoint access to specific user roles.
  * @param allowedRoles Array of allowed roles
  */
-export function requireRole(allowedRoles: ('buyer' | 'organizer' | 'admin')[]) {
+export function requireRole(allowedRoles: ('buyer' | 'organizer' | 'admin' | 'gate_staff')[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({

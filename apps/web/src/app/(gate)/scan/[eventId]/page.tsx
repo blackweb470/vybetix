@@ -46,13 +46,13 @@ export default function GateScannerPage() {
   useEffect(() => {
     if (!token || !user) {
       toast({ title: 'Authentication required', description: 'Please log in to access the ticket scanning console.', variant: 'destructive' });
-      router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
 
-    if (user.role !== 'organizer' && user.role !== 'admin') {
-      toast({ title: 'Access Denied', description: 'Only organizers and admins can access the scanner console', variant: 'destructive' });
-      router.push('/dashboard');
+    if (user.role !== 'organizer' && user.role !== 'admin' && user.role !== 'gate_staff') {
+      toast({ title: 'Access Denied', description: 'Only event staff can access the scanner console', variant: 'destructive' });
+      window.location.href = '/';
       return;
     }
 
@@ -117,7 +117,7 @@ export default function GateScannerPage() {
       {/* Sticky header */}
       <div className="w-full border-b border-zinc-900/80 bg-zinc-950/80 backdrop-blur-xl px-6 py-5 sticky top-0 z-30">
         <div className="mx-auto max-w-5xl flex items-center justify-between">
-          <button onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
+          <button onClick={() => window.location.href = '/dashboard'} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
             <ArrowLeft className="h-3.5 w-3.5" />Dashboard
           </button>
           <div className="flex items-center gap-2">

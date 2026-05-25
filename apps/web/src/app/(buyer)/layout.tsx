@@ -18,16 +18,16 @@ export default function BuyerLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (mounted) {
       if (!isAuthenticated) {
-        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
-      } else if (user?.role !== 'buyer') {
+        window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
+      } else if (user?.role !== 'buyer' && user?.role !== 'gate_staff') {
         // Forbidden to non-buyer accounts
-        router.push('/');
+        window.location.href = '/';
       }
     }
   }, [mounted, isAuthenticated, user, router, pathname]);
 
   // Prevent flash or hydration mismatch issues
-  if (!mounted || !isAuthenticated || user?.role !== 'buyer') {
+  if (!mounted || !isAuthenticated || (user?.role !== 'buyer' && user?.role !== 'gate_staff')) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#0D0D0D] py-36">
         <Disc className="h-10 w-10 text-[#E8441A] animate-spin" />

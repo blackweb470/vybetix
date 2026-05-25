@@ -52,9 +52,16 @@ export function verifyQRToken(token: string): { ticketId: string; timestamp: num
       const expectedBuf = Buffer.from(expectedHmac);
 
       if (hmacBuf.length === expectedBuf.length && crypto.timingSafeEqual(hmacBuf, expectedBuf)) {
+        const tokenTime = parseInt(timestampStr, 10);
+        // Enforce 1-minute expiration (60000ms) with a 30s grace period for clock skew/scanning delay
+        if (Date.now() - tokenTime > 90000) {
+          console.warn(`[QR verify] Token for ticket ${ticketId} expired.`);
+          return null; 
+        }
+
         return {
           ticketId,
-          timestamp: parseInt(timestampStr, 10)
+          timestamp: tokenTime
         };
       }
     }

@@ -266,7 +266,7 @@ export default function EditEventWizardPage() {
 
       await updateMutation.mutateAsync({ id: eventId, formData });
       toast({ title: 'Event Updated!', description: 'Your changes have been saved.', variant: 'success' });
-      router.push('/dashboard');
+      window.location.href = '/dashboard';
     } catch (err: any) {
       toast({ title: 'Failed to update', description: err.response?.data?.message || err.message, variant: 'destructive' });
     }
@@ -277,7 +277,7 @@ export default function EditEventWizardPage() {
       try {
         await deleteMutation.mutateAsync(eventId);
         toast({ title: 'Event Deleted', description: 'Your event has been successfully deleted.', variant: 'success' });
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       } catch (err: any) {
         toast({ title: 'Failed to delete', description: err.response?.data?.message || err.message, variant: 'destructive' });
       }
@@ -304,7 +304,7 @@ export default function EditEventWizardPage() {
       <div className="w-full min-h-screen bg-[#08080C] flex flex-col items-center justify-center gap-5 text-zinc-100 font-outfit">
         <h3 className="text-sm font-black uppercase tracking-wider text-red-500">Failed to load event</h3>
         <p className="text-xs text-zinc-500">Event may not exist or you lack authorization to modify it.</p>
-        <button onClick={() => router.push('/dashboard')} className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-zinc-800 text-zinc-300 hover:text-white transition-all text-xs font-black uppercase tracking-widest">
+        <button onClick={() => window.location.href = '/dashboard'} className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-zinc-800 text-zinc-300 hover:text-white transition-all text-xs font-black uppercase tracking-widest">
           <ArrowLeft className="h-4 w-4" />Back to Dashboard
         </button>
       </div>
@@ -316,7 +316,7 @@ export default function EditEventWizardPage() {
       {/* Header */}
       <div className="w-full border-b border-zinc-900/80 bg-zinc-950/80 backdrop-blur-xl px-6 py-5 sticky top-0 z-30">
         <div className="mx-auto max-w-3xl flex items-center justify-between">
-          <button onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
+          <button onClick={() => window.location.href = '/dashboard'} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
             <ArrowLeft className="h-3.5 w-3.5" />Dashboard
           </button>
           <h1 className="text-sm font-black text-white font-syne uppercase tracking-widest">Edit Event</h1>
@@ -629,7 +629,7 @@ export default function EditEventWizardPage() {
                   <ArrowLeft className="h-4 w-4" />Back
                 </button>
               )}
-              <button type="button" onClick={() => router.push('/dashboard')} className="text-xs font-black uppercase tracking-widest text-zinc-650 hover:text-white transition-colors px-3 py-2">
+              <button type="button" onClick={() => window.location.href = '/dashboard'} className="text-xs font-black uppercase tracking-widest text-zinc-650 hover:text-white transition-colors px-3 py-2">
                 Cancel
               </button>
               <button 

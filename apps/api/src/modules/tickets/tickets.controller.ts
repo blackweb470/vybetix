@@ -3,9 +3,38 @@ import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { AuthRequest } from '../../middleware/auth';
 // paystackClient kept for future verifyTransaction usage if needed
-import { verifyQRToken } from '../../utils/qrcode';
+import { verifyQRToken, generateQRToken } from '../../utils/qrcode';
+import { fulfillOrder } from '../payments/payments.controller';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { sendDeviceUnlockOTP } from '../../utils/mailer';
+
+// --- In-Memory Caching for Gate Staff Authorization ---
+// This reduces database queries drastically during rapid gate scanning by caching 
+// the staff's authorization status for an event for 5 minutes.
+const staffAuthCache = new Map<string, { authorized: boolean, expiresAt: number }>();
+
+async function checkStaffAuthorization(userId: string, eventId: string): Promise<boolean> {
+  const cacheKey = `${userId}:${eventId}`;
+  const cached = staffAuthCache.get(cacheKey);
+  
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.authorized;
+  }
+
+  const { data: staffData } = await supabase
+    .from('event_staff')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .single();
+
+  const isAuthorized = !!staffData;
+  // Cache the result for 5 minutes (300000 ms)
+  staffAuthCache.set(cacheKey, { authorized: isAuthorized, expiresAt: Date.now() + 300000 });
+  
+  return isAuthorized;
+}
 
 // 1. Zod Validation Schemas
 const attendeeSchema = z.object({
@@ -52,31 +81,29 @@ export const ticketsController = {
         return error(res, 'Event has ended', 'Ticket sales are closed — this event has already ended.', 400);
       }
 
-      // 3. Validate Tier Capacity Availability
-      const { count: realSold } = await supabase
-        .from('tickets')
-        .select('id', { count: 'exact', head: true })
-        .eq('tier_id', parsedData.tierId);
+      // 3. Calculate total amount in kobo
+      const baseAmount = tier.price * parsedData.quantity;
+      const totalAmount = baseAmount > 0 ? baseAmount + 30000 : 0; // Add 300 Naira platform fee only if ticket is not free
 
-      const soldCount = realSold || 0;
+      // 4. Parallelize secondary validation checks
+      const [ticketsCountRes, uniRes, orgProfileRes] = await Promise.all([
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('tier_id', parsedData.tierId),
+        (event.is_university_only && event.university_id) ? supabase.from('universities').select('email_domain').eq('id', event.university_id).single() : Promise.resolve({ data: null }),
+        totalAmount > 0 ? supabase.from('organizer_profiles').select('paystack_subaccount_code').eq('user_id', event.organizer_id).maybeSingle() : Promise.resolve({ data: null })
+      ]);
+
+      const soldCount = ticketsCountRes.count || 0;
       const remainingCapacity = tier.quantity - soldCount;
       if (remainingCapacity < parsedData.quantity) {
         return error(res, 'Sold out', `Only ${remainingCapacity} tickets are left for the "${tier.name}" tier`, 400);
       }
 
-      // 3. Campus restriction audit: is_university_only verification
+      // Campus restriction audit
       if (event.is_university_only && event.university_id) {
-        // Fetch university details
-        const { data: university } = await supabase
-          .from('universities')
-          .select('email_domain')
-          .eq('id', event.university_id)
-          .single();
-
+        const university = uniRes.data;
         if (university) {
           const emailDomain = university.email_domain.toLowerCase();
           
-          // Check all attendees for valid university email
           const invalidAttendee = parsedData.attendees.find(a => {
             const userEmail = a.email.toLowerCase();
             return !userEmail.endsWith(`@${emailDomain}`) && !userEmail.endsWith(`.${emailDomain}`);
@@ -88,15 +115,11 @@ export const ticketsController = {
         }
       }
 
-      // 5. Calculate total amount in kobo
-      const baseAmount = tier.price * parsedData.quantity;
-      const totalAmount = baseAmount + 30000; // Add 300 Naira platform fee
-
-      // 6. Generate unique Paystack reference
+      // 5. Generate unique Paystack reference
       const reference = `TIX-${crypto.randomUUID()}`;
       const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/orders/verify`;
 
-      // 7. Create pending order in DB first
+      // 6. Create pending order in DB first
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -104,7 +127,7 @@ export const ticketsController = {
           event_id: event.id,
           total_amount: totalAmount,
           paystack_reference: reference,
-          paystack_status: 'pending'
+          paystack_status: totalAmount === 0 ? 'success' : 'pending'
         })
         .select()
         .single();
@@ -113,12 +136,19 @@ export const ticketsController = {
         return error(res, 'Order creation failed', orderError?.message || 'Failed to persist order', 400);
       }
 
-      // 7.5. Fetch organizer profile to check for subaccount (for split payouts)
-      const { data: organizerProfile } = await supabase
-        .from('organizer_profiles')
-        .select('paystack_subaccount_code')
-        .eq('user_id', event.organizer_id)
-        .maybeSingle();
+      // If total amount is 0, bypass paystack completely and fulfill the order
+      if (totalAmount === 0) {
+        await fulfillOrder(order.id, tier.id, parsedData.attendees);
+        return success(res, {
+          orderId: order.id,
+          reference,
+          amount: 0,
+          accessCode: null,
+          authorizationUrl: null
+        }, 'Free tickets claimed successfully!');
+      }
+
+      const organizerProfile = orgProfileRes.data;
 
       // 8. Initialize Paystack transaction with full metadata
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
@@ -285,6 +315,11 @@ export const ticketsController = {
           };
         }
 
+        // Generate a fresh token so it's valid immediately upon load
+        if (ticket.status === 'active' && (!ticket.device_locked || ticket.device_fingerprint === deviceFingerprint)) {
+          ticket.qr_token = generateQRToken(ticket.id);
+        }
+
         return ticket;
       }));
 
@@ -321,6 +356,21 @@ export const ticketsController = {
         return error(res, 'Ticket missing', 'No matching ticket found in database', 404);
       }
 
+      const event = ticket.ticket_tiers.events;
+
+      // Ensure user is authorized to scan for this event
+      if (req.user?.role !== 'admin' && event.organizer_id !== req.user?.id) {
+        if (!req.user?.id) {
+          return error(res, 'Forbidden', 'User ID missing', 403);
+        }
+        
+        const isAuthorized = await checkStaffAuthorization(req.user.id, event.id);
+        
+        if (!isAuthorized) {
+          return error(res, 'Forbidden', 'You are not authorized to scan tickets for this event', 403);
+        }
+      }
+
       return success(res, ticket, 'Ticket identified successfully');
     } catch (err: any) {
       console.error('Get ticket by QR error:', err);
@@ -354,6 +404,20 @@ export const ticketsController = {
       }
 
       const event = ticket.ticket_tiers.events;
+
+      // Ensure user is authorized to scan for this event
+      if (req.user?.role !== 'admin' && event.organizer_id !== req.user?.id) {
+        if (!req.user?.id) {
+          return error(res, 'Forbidden', 'User ID missing', 403);
+        }
+
+        const isAuthorized = await checkStaffAuthorization(req.user.id, event.id);
+        
+        if (!isAuthorized) {
+          return error(res, 'Forbidden', 'You are not authorized to validate tickets for this event', 403);
+        }
+      }
+
       const now = new Date();
       const eventEndDate = new Date(event.end_date);
 
@@ -471,6 +535,170 @@ export const ticketsController = {
     } catch (err: any) {
       console.error('Get organizer tickets error:', err);
       return error(res, 'Server error getting organizer tickets', err.message, 500);
+    }
+  },
+
+  /**
+   * Request device unlock OTP
+   */
+  requestUnlock: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return error(res, 'Unauthorized', 'User session required', 401);
+      }
+
+      const { id } = req.params;
+
+      const { data: ticket, error: err } = await supabase
+        .from('tickets')
+        .select('*, ticket_tiers(events(title, event_date))')
+        .eq('id', id)
+        .single();
+
+      if (err || !ticket) {
+        return error(res, 'Not found', 'Ticket not found', 404);
+      }
+
+      if (ticket.holder_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
+        return error(res, 'Forbidden', 'Not authorized to unlock this ticket', 403);
+      }
+
+      // 1. Strict limit: Max 2 device changes
+      if (ticket.unlock_count >= 2) {
+        return error(res, 'Transfer Limit Exceeded', 'This ticket has reached the maximum allowed device transfers (2) to prevent fraud.', 403);
+      }
+
+      // 2. Event Day Lockdown: Prevent device changes 24 hours before event starts
+      const eventDate = new Date(ticket.ticket_tiers?.events?.event_date);
+      const timeUntilEvent = eventDate.getTime() - Date.now();
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+      if (timeUntilEvent < TWENTY_FOUR_HOURS) {
+        return error(res, 'Event Day Lockdown Active', 'Device transfers are disabled within 24 hours of the event. Please visit the venue box office with your ID to regain access.', 403);
+      }
+
+      // Generate a 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      const { error: updateError } = await supabase
+        .from('tickets')
+        .update({ unlock_otp: otp, unlock_otp_expires_at: expiresAt })
+        .eq('id', id);
+
+      if (updateError) {
+        return error(res, 'Database error', 'Failed to generate OTP', 500);
+      }
+
+      const eventTitle = ticket.ticket_tiers?.events?.title || 'Event';
+      await sendDeviceUnlockOTP(ticket.holder_email, ticket.holder_name, otp, eventTitle);
+
+      return success(res, null, 'OTP sent successfully to your email');
+    } catch (err: any) {
+      console.error('Request unlock error:', err);
+      return error(res, 'Server error', err.message, 500);
+    }
+  },
+
+  /**
+   * Verify device unlock OTP
+   */
+  verifyUnlock: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return error(res, 'Unauthorized', 'User session required', 401);
+      }
+
+      const { id } = req.params;
+      const { otp } = req.body;
+      const newFingerprint = req.headers['x-device-fingerprint'] as string;
+
+      if (!otp) {
+        return error(res, 'Validation error', 'OTP is required', 400);
+      }
+      if (!newFingerprint) {
+        return error(res, 'Validation error', 'Missing device fingerprint header', 400);
+      }
+
+      const { data: ticket, error: err } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (err || !ticket) {
+        return error(res, 'Not found', 'Ticket not found', 404);
+      }
+
+      if (ticket.holder_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
+        return error(res, 'Forbidden', 'Not authorized to unlock this ticket', 403);
+      }
+
+      if (ticket.unlock_otp !== otp) {
+        return error(res, 'Invalid OTP', 'The OTP provided is incorrect', 400);
+      }
+
+      if (new Date(ticket.unlock_otp_expires_at) < new Date()) {
+        return error(res, 'Expired OTP', 'The OTP provided has expired', 400);
+      }
+
+      // Update the fingerprint, clear OTP, and increment unlock count
+      const { error: updateError } = await supabase
+        .from('tickets')
+        .update({ 
+          device_fingerprint: newFingerprint,
+          unlock_otp: null,
+          unlock_otp_expires_at: null,
+          unlock_count: (ticket.unlock_count || 0) + 1
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        return error(res, 'Database error', 'Failed to unlock ticket', 500);
+      }
+
+      return success(res, null, 'Device unlocked successfully');
+    } catch (err: any) {
+      console.error('Verify unlock error:', err);
+      return error(res, 'Server error', err.message, 500);
+    }
+  },
+
+  /**
+   * Refreshes a ticket's QR token
+   */
+  refreshQR: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return error(res, 'Unauthorized', 'User session required', 401);
+      }
+
+      const { id } = req.params;
+      const deviceFingerprint = req.headers['x-device-fingerprint'] as string;
+
+      const { data: ticket, error: err } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (err || !ticket) {
+        return error(res, 'Not found', 'Ticket not found', 404);
+      }
+
+      if (ticket.holder_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
+        return error(res, 'Forbidden', 'Not authorized to view this ticket', 403);
+      }
+
+      if (ticket.device_locked && ticket.device_fingerprint && ticket.device_fingerprint !== deviceFingerprint) {
+        return error(res, 'Device mismatch', 'Ticket locked to another device', 403);
+      }
+
+      const token = generateQRToken(ticket.id);
+      return success(res, { qr_token: token }, 'QR token refreshed');
+    } catch (err: any) {
+      console.error('Refresh QR error:', err);
+      return error(res, 'Server error', err.message, 500);
     }
   }
 };

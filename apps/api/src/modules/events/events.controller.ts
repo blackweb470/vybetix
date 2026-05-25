@@ -593,5 +593,197 @@ export const eventsController = {
     }
   },
 
+  /**
+   * Add a staff member to an event
+   */
+  addStaff: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { email } = req.body;
+
+      if (!email) {
+        return error(res, 'Validation error', 'Email is required', 400);
+      }
+
+      // Check if organizer owns the event
+      const { data: event, error: eventErr } = await supabase
+        .from('events')
+        .select('id')
+        .eq('id', id)
+        .eq('organizer_id', req.user?.id)
+        .single();
+
+      if (eventErr || !event) {
+        return error(res, 'Not found', 'Event not found or you are not the organizer', 404);
+      }
+
+      // Find if user with this email exists
+      let userId = null;
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id, role')
+        .eq('email', email)
+        .single();
+
+      if (userData) {
+        userId = userData.id;
+        
+        // If they are a buyer, upgrade them to gate_staff
+        if (userData.role === 'buyer') {
+          await supabase.from('users').update({ role: 'gate_staff' }).eq('id', userId);
+        }
+      }
+
+      // Insert into event_staff
+      const { error: insertErr } = await supabase
+        .from('event_staff')
+        .insert({
+          event_id: id,
+          email,
+          user_id: userId
+        });
+
+      if (insertErr) {
+        if (insertErr.code === '23505') {
+          return error(res, 'Conflict', 'This email is already added as staff for this event', 409);
+        }
+        return error(res, 'Database error', 'Failed to add staff', 500);
+      }
+
+      return success(res, null, 'Staff added successfully');
+    } catch (err: any) {
+      console.error('Add staff error:', err);
+      return error(res, 'Server error', err.message, 500);
+    }
+  },
+
+  /**
+   * Get all staff for an event
+   */
+  getStaff: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const { data: event, error: eventErr } = await supabase
+        .from('events')
+        .select('id')
+        .eq('id', id)
+        .eq('organizer_id', req.user?.id)
+        .single();
+
+      if (eventErr || !event) {
+        return error(res, 'Not found', 'Event not found or you are not the organizer', 404);
+      }
+
+      const { data: staff, error: staffErr } = await supabase
+        .from('event_staff')
+        .select('id, email, user_id, created_at, users(full_name)')
+        .eq('event_id', id);
+
+      if (staffErr) {
+        return error(res, 'Database error', 'Failed to fetch staff', 500);
+      }
+
+      return success(res, staff, 'Staff retrieved successfully');
+    } catch (err: any) {
+      console.error('Get staff error:', err);
+      return error(res, 'Server error', err.message, 500);
+    }
+  },
+
+  /**
+   * Remove a staff member
+   */
+  removeStaff: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id, staffId } = req.params;
+
+      const { data: event, error: eventErr } = await supabase
+        .from('events')
+        .select('id')
+        .eq('id', id)
+        .eq('organizer_id', req.user?.id)
+        .single();
+
+      if (eventErr || !event) {
+        return error(res, 'Not found', 'Event not found or you are not the organizer', 404);
+      }
+
+      // Pre-fetch the user_id before deleting so we can update their role afterwards
+      const { data: staffData } = await supabase
+        .from('event_staff')
+        .select('user_id')
+        .eq('id', staffId)
+        .eq('event_id', id)
+        .single();
+
+      const { error: delErr } = await supabase
+        .from('event_staff')
+        .delete()
+        .eq('id', staffId)
+        .eq('event_id', id);
+
+      if (delErr) {
+        return error(res, 'Database error', 'Failed to remove staff', 500);
+      }
+
+      // If they are registered users, check if they still have other staff assignments
+      if (staffData?.user_id) {
+        const { count } = await supabase
+          .from('event_staff')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', staffData.user_id);
+
+        // If they have 0 assignments left, downgrade their global role back to buyer
+        if (count === 0) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', staffData.user_id)
+            .single();
+
+          if (userData && userData.role === 'gate_staff') {
+            await supabase
+              .from('users')
+              .update({ role: 'buyer' })
+              .eq('id', staffData.user_id);
+          }
+        }
+      }
+
+      return success(res, null, 'Staff removed successfully');
+    } catch (err: any) {
+      console.error('Remove staff error:', err);
+      return error(res, 'Server error', err.message, 500);
+    }
+  },
+
+  /**
+   * Get events assigned to the gate staff
+   */
+  getAssignedEvents: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return error(res, 'Unauthorized', 'Session required', 401);
+      }
+
+      const { data: assignments, error: queryError } = await supabase
+        .from('event_staff')
+        .select('event_id, events(id, title, slug, cover_image_url, event_date, venue, city)')
+        .eq('user_id', req.user.id);
+
+      if (queryError) {
+        return error(res, 'Database error', 'Failed to fetch assigned events', 500);
+      }
+
+      // Supabase join returns an array of objects where 'events' is the joined data
+      const assignedEvents = assignments.map(a => a.events).filter(e => e !== null);
+      
+      return success(res, assignedEvents, 'Assigned events retrieved successfully');
+    } catch (err: any) {
+      console.error('Get assigned events error:', err);
+      return error(res, 'Server error', err.message, 500);
+    }
+  }
 };
 

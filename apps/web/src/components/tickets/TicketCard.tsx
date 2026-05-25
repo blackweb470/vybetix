@@ -7,7 +7,10 @@ import { Button } from '../ui/button';
 import QRDisplay from './QRDisplay';
 import { BuyerTicket } from '../../types';
 import { formatDate, formatNaira } from '../../lib/utils';
-import { Calendar, MapPin, QrCode, User, CreditCard, ShieldAlert } from 'lucide-react';
+import { Calendar, MapPin, QrCode, User, CreditCard, ShieldAlert, Mail, KeyRound, Loader2 } from 'lucide-react';
+import { api } from '../../lib/api';
+import { useToast } from '../ui/toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Helper utilities to encode/decode credential IDs for localStorage
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -31,6 +34,42 @@ interface TicketCardProps {
 export default function TicketCard({ ticket }: TicketCardProps) {
   const [showQR, setShowQR] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  
+  // Unlock State
+  const [unlockState, setUnlockState] = useState<'idle' | 'requesting' | 'otp' | 'verifying'>('idle');
+  const [otpValue, setOtpValue] = useState('');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleRequestUnlock = async () => {
+    setUnlockState('requesting');
+    try {
+      await api.post(`/api/tickets/${ticket.id}/request-unlock`);
+      setUnlockState('otp');
+      toast({ title: 'OTP Sent', description: 'Check your email for the unlock code.', variant: 'success' });
+    } catch (error: any) {
+      setUnlockState('idle');
+      toast({ title: 'Failed to request unlock', description: error.response?.data?.message || 'Error requesting unlock.', variant: 'destructive' });
+    }
+  };
+
+  const handleVerifyUnlock = async () => {
+    if (!otpValue || otpValue.length < 6) return;
+    setUnlockState('verifying');
+    try {
+      await api.post(`/api/tickets/${ticket.id}/verify-unlock`, { otp: otpValue });
+      toast({ title: 'Device Unlocked!', description: 'You can now view your ticket.', variant: 'success' });
+      setUnlockState('idle');
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      // Invalidate tickets (since it might be from getMyTickets)
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      // The easiest way to refresh is to reload if the specific query key is complex
+      window.location.reload();
+    } catch (error: any) {
+      setUnlockState('otp');
+      toast({ title: 'Invalid OTP', description: error.response?.data?.message || 'Failed to verify OTP.', variant: 'destructive' });
+    }
+  };
 
   const handleRevealClick = async () => {
     if (showQR) {
@@ -44,7 +83,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
       return;
     }
 
-    const credKey = `tixwave_cred_${ticket.id}`;
+    const credKey = `tixwave_cred_${ticket.id}`
     let storedCredId = localStorage.getItem(credKey);
 
     setIsAuthenticating(true);
@@ -221,14 +260,50 @@ export default function TicketCard({ ticket }: TicketCardProps) {
 
         {/* Device mismatch warning */}
         {ticket.status === 'active' && ticket.is_device_mismatch && (
-          <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-200 text-xs mt-1 animate-in fade-in-30">
-            <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-            <div className="flex flex-col gap-0.5 text-left">
-              <p className="font-bold uppercase tracking-wider text-[10px] text-red-400">Device Lock Active</p>
-              <p className="text-zinc-400 text-[11px] leading-relaxed">
-                This ticket is cryptographically locked to the first device it was opened on. Access on this device is restricted.
-              </p>
+          <div className="flex flex-col gap-2 mt-1 animate-in fade-in-30">
+            <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-200 text-xs">
+              <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+              <div className="flex flex-col gap-0.5 text-left">
+                <p className="font-bold uppercase tracking-wider text-[10px] text-red-400">Device Lock Active</p>
+                <p className="text-zinc-400 text-[11px] leading-relaxed">
+                  This ticket is cryptographically locked to the first device it was opened on. Access on this device is restricted.
+                </p>
+              </div>
             </div>
+            
+            {unlockState === 'idle' && (
+              <Button variant="outline" onClick={handleRequestUnlock} className="w-full uppercase tracking-widest text-[10px] h-9 bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800">
+                <Mail className="w-3.5 h-3.5 mr-2" /> Request Email Unlock
+              </Button>
+            )}
+            
+            {unlockState === 'requesting' && (
+              <Button disabled variant="outline" className="w-full uppercase tracking-widest text-[10px] h-9 bg-zinc-900 border-zinc-800 text-zinc-500">
+                <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> Sending Email...
+              </Button>
+            )}
+
+            {(unlockState === 'otp' || unlockState === 'verifying') && (
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input 
+                    type="text" 
+                    placeholder="Enter 6-digit OTP"
+                    value={otpValue}
+                    onChange={(e) => setOtpValue(e.target.value)}
+                    className="w-full h-9 pl-9 pr-3 rounded-lg border border-zinc-800 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#E8441A]"
+                  />
+                </div>
+                <Button 
+                  onClick={handleVerifyUnlock} 
+                  disabled={unlockState === 'verifying' || otpValue.length < 6}
+                  className="h-9 px-4 uppercase tracking-widest text-[10px] bg-[#E8441A] hover:bg-[#E8441A]/90 text-white"
+                >
+                  {unlockState === 'verifying' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Verify'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

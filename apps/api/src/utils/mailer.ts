@@ -184,3 +184,38 @@ export async function sendEventReminderEmail(
   });
 }
 
+/**
+ * Sends a device unlock OTP email to the ticket holder.
+ */
+export async function sendDeviceUnlockOTP(email: string, name: string, otp: string, eventTitle: string) {
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <body style="background-color: #0b0b0f; color: #f3f4f6; font-family: sans-serif; padding: 40px 20px;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #12121a; border-radius: 16px; border: 1px solid #27272a; padding: 40px;">
+        <h2 style="color: #ffffff;">Hey ${name},</h2>
+        <p>You requested to unlock your ticket for <strong>${eventTitle}</strong> on a new device.</p>
+        <p>Your authorization code is:</p>
+        <div style="margin: 20px 0; padding: 15px; background-color: #1a1a24; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #e8441a; border-radius: 8px;">
+          ${otp}
+        </div>
+        <p>This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 're_mock_key_12345') {
+    console.log(`[Mock Mailer] OTP ${otp} sent to ${email}`);
+    return { success: true, mock: true };
+  }
+
+  return await resend.emails.send({
+    from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@')) 
+      ? process.env.RESEND_FROM_EMAIL 
+      : 'Vybetix <tickets@vybetix.com>',
+    to: [email],
+    subject: `🔐 Unlock Your Ticket - ${eventTitle}`,
+    html: emailHtml
+  });
+}

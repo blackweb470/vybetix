@@ -34,7 +34,7 @@ function OrderVerifyContent() {
         
         // Auto redirect after 3 seconds
         setTimeout(() => {
-          router.push('/tickets');
+          window.location.href = '/tickets';
         }, 3000);
       } catch (err: any) {
         console.error('Verification error:', err);

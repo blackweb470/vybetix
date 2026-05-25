@@ -95,13 +95,13 @@ function EventShelf({ title, subtitle, events }: ShelfProps) {
         {/* Navigation arrows for desktop */}
         <button
           onClick={() => scroll('left')}
-          className="absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-zinc-950/80 border border-zinc-800 text-white flex items-center justify-center opacity-0 group-hover/shelf:opacity-100 transition-opacity hover:bg-zinc-900 shadow-lg hidden md:flex"
+          className="absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-zinc-950/80 border border-zinc-800 text-white items-center justify-center opacity-0 group-hover/shelf:opacity-100 transition-opacity hover:bg-zinc-900 shadow-lg hidden md:flex"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <button
           onClick={() => scroll('right')}
-          className="absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-zinc-950/80 border border-zinc-800 text-white flex items-center justify-center opacity-0 group-hover/shelf:opacity-100 transition-opacity hover:bg-zinc-900 shadow-lg hidden md:flex"
+          className="absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-zinc-950/80 border border-zinc-800 text-white items-center justify-center opacity-0 group-hover/shelf:opacity-100 transition-opacity hover:bg-zinc-900 shadow-lg hidden md:flex"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
