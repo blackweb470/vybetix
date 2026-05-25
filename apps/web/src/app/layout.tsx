@@ -33,6 +33,7 @@ export default function RootLayout({
     <html lang="en" className="dark scroll-smooth">
       <body
         className={`${syneFont.variable} ${outfitFont.variable} font-outfit antialiased bg-[#0D0D0D] text-zinc-100 min-h-screen flex flex-col`}
+        suppressHydrationWarning={true}
       >
         <Providers>
           <Navbar />

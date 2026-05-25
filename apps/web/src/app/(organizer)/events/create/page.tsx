@@ -8,6 +8,7 @@ import { Select } from '../../../../components/ui/select';
 import { useToast } from '../../../../components/ui/toast';
 import { formatNaira } from '../../../../lib/utils';
 import { Calendar, ArrowLeft, ArrowRight, Plus, Trash2, CheckCircle, FileText, MapPin, Ticket, GraduationCap, Disc, Upload, Image as ImageIcon, Link as LinkIcon, ShieldAlert } from 'lucide-react';
+import { SearchableSelect } from '../../../../components/ui/searchable-select';
 
 const CATEGORY_OPTIONS = [
   { value: 'music', label: 'Music & Concerts' },
@@ -167,7 +168,6 @@ export default function CreateEventWizardPage() {
       await createMutation.mutateAsync(formData);
       toast({ title: 'Event Published!', description: 'Your event is now live.', variant: 'success' });
       router.push('/dashboard');
-      router.refresh();
     } catch (err: any) {
       toast({ title: 'Failed to publish', description: err.response?.data?.message || err.message, variant: 'destructive' });
     }
@@ -237,9 +237,12 @@ export default function CreateEventWizardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Category</label>
-                  <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls}>
-                    {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value} className="bg-zinc-900">{o.label}</option>)}
-                  </select>
+                  <SearchableSelect
+                    options={CATEGORY_OPTIONS}
+                    value={category}
+                    onChange={setCategory}
+                    placeholder="Select a category..."
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Event Cover Image</label>
@@ -384,9 +387,12 @@ export default function CreateEventWizardPage() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">City</label>
-                <select value={city} onChange={e => setCity(e.target.value)} className={inputCls}>
-                  {CITY_OPTIONS.map(o => <option key={o.value} value={o.value} className="bg-zinc-900">{o.label}</option>)}
-                </select>
+                <SearchableSelect
+                  options={CITY_OPTIONS}
+                  value={city}
+                  onChange={setCity}
+                  placeholder="Select a State / City..."
+                />
               </div>
             </div>
           )}
@@ -412,18 +418,18 @@ export default function CreateEventWizardPage() {
                       </button>
                     </div>
                     <div className="flex flex-col gap-3">
-                      <div className="flex bg-zinc-900 p-1 rounded-xl w-fit">
+                      <div className="flex bg-zinc-900 p-1 rounded-xl w-full sm:w-fit justify-between sm:justify-start">
                         <button 
                           type="button"
                           onClick={() => handleTierChange(idx, 'type', 'free')}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'free' ? 'bg-[#E8441A] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                          className={`flex-1 sm:flex-none sm:px-6 px-4 py-2 sm:py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'free' ? 'bg-[#E8441A] text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}
                         >
                           Free
                         </button>
                         <button 
                           type="button"
                           onClick={() => handleTierChange(idx, 'type', 'paid')}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'paid' ? 'bg-[#E8441A] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                          className={`flex-1 sm:flex-none sm:px-6 px-4 py-2 sm:py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'paid' ? 'bg-[#E8441A] text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}
                         >
                           Paid
                         </button>

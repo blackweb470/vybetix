@@ -42,7 +42,7 @@ export async function sendTicketWhatsAppNotification(
         to: formattedPhone,
         type: 'template',
         template: {
-          name: 'Vybetix_ticket_delivery',
+          name: 'vybetix_ticket_delivery',
           language: {
             code: 'en_US'
           },
@@ -105,7 +105,7 @@ export async function sendEventReminderWhatsApp(
         to: formattedPhone,
         type: 'template',
         template: {
-          name: 'Vybetix_event_reminder',
+          name: 'vybetix_event_reminder',
           language: {
             code: 'en_US'
           },

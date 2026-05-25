@@ -6,9 +6,10 @@ import { useEvents } from '../hooks/useEvents';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { SearchableSelect } from '../components/ui/searchable-select';
 import { formatNaira, formatDate } from '../lib/utils';
-import { 
-  Search, Calendar, MapPin, Music, Trophy, Theater, Disc, 
+import {
+  Search, Calendar, MapPin, Music, Trophy, Theater, Disc,
   Tent, ShieldCheck, Zap, Ticket, ArrowRight, Lock, Flame, ChevronRight, HelpCircle,
   Cpu, GraduationCap, Utensils, Tag, Heart
 } from 'lucide-react';
@@ -51,12 +52,13 @@ export default function LandingPage() {
   const [search, setSearch] = useState('');
   const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
-  
+
   // Set up active filters to fetch live events from backend
   const filters = {
     search: search || undefined,
-    city: selectedCity,
-    category: selectedCategory
+    city: selectedCity ? selectedCity.toLowerCase().replace(' ', '_') : undefined,
+    category: selectedCategory,
+    limit: 15
   };
 
   const { data: events, isLoading } = useEvents(filters);
@@ -71,15 +73,15 @@ export default function LandingPage() {
 
   return (
     <div className="w-full bg-[#08080C] pb-32 overflow-x-hidden font-outfit relative">
-      
+
       {/* Immersive Widescreen Background Overlays */}
       <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[50%] rounded-full bg-[#E8441A] blur-[200px] opacity-[0.05] pointer-events-none" />
       <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/30 blur-[180px] opacity-[0.05] pointer-events-none" />
-      
+
       {/* 1. HERO SEARCH CONSOLE (Inspired by Ticketmaster's immersive focus) */}
       <section className="relative w-full min-h-[460px] sm:min-h-[520px] flex items-center justify-center px-6 bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(8, 8, 12, 0.45), rgba(8, 8, 12, 0.98)), url('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200')" }}>
         <div className="absolute top-0 inset-x-0 h-44 bg-gradient-to-b from-[#08080C]/90 to-transparent pointer-events-none" />
-        
+
         <div className="mx-auto max-w-5xl w-full flex flex-col items-center text-center relative z-30 pt-16 pb-8">
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white mb-6 uppercase tracking-tight font-syne leading-[1.05]">
             Discover Live Events <br />
@@ -94,7 +96,7 @@ export default function LandingPage() {
 
           {/* Ticketmaster-Style Double Filter Search Box */}
           <div className="w-full max-w-3xl bg-zinc-950/85 backdrop-blur-xl border border-zinc-800/80 rounded-2xl sm:rounded-full p-2 flex flex-col sm:flex-row items-center gap-2 shadow-[0_30px_60px_rgba(0,0,0,0.8)] focus-within:border-[#E8441A]/50 transition-all duration-300">
-            
+
             {/* Search Input field */}
             <div className="flex-1 w-full flex items-center pl-4 border-b sm:border-b-0 sm:border-r border-zinc-850 pb-2.5 sm:pb-0">
               <Search className="h-5 w-5 text-zinc-500 mr-3 shrink-0" />
@@ -108,18 +110,19 @@ export default function LandingPage() {
             </div>
 
             {/* City Dropdown Selection */}
-            <div className="w-full sm:w-48 flex items-center px-4 pb-2.5 sm:pb-0">
-              <MapPin className="h-5 w-5 text-zinc-500 mr-2.5 shrink-0" />
-              <select
+            <div className="w-full sm:w-[1px] h-[1px] sm:h-8 bg-zinc-800" />
+            <div className="flex-1 sm:flex-none sm:w-56 flex items-center px-4 w-full h-12 relative z-50">
+              <MapPin className="h-5 w-5 text-zinc-500 shrink-0" />
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Locations' },
+                  ...ALL_STATES.map(c => ({ value: c, label: c }))
+                ]}
                 value={selectedCity || ''}
-                onChange={(e) => setSelectedCity(e.target.value || undefined)}
-                className="w-full bg-transparent border-none text-sm text-zinc-300 focus:outline-none focus:ring-0 py-3 appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-zinc-900 text-zinc-300">All Locations</option>
-                {ALL_STATES.map(c => (
-                  <option key={c} value={c} className="bg-zinc-900 text-zinc-300">{c}</option>
-                ))}
-              </select>
+                onChange={(val) => handleCitySelect(val)}
+                placeholder="All Locations"
+                className="[&>button]:bg-transparent [&>button]:border-transparent [&>button]:h-full [&>button]:text-sm [&>button]:font-bold [&>button]:text-zinc-300 hover:[&>button]:text-white focus:[&>button]:ring-0"
+              />
             </div>
 
             {/* Submit Button */}
@@ -135,9 +138,9 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="bg-zinc-950/90 backdrop-blur-2xl border border-zinc-850 p-6 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
             <div className="flex flex-wrap justify-center sm:justify-around items-center gap-6 sm:gap-4">
-              
+
               {/* All Vibes circle */}
-              <button 
+              <button
                 onClick={() => setSelectedCategory(undefined)}
                 className="flex flex-col items-center gap-2 group focus:outline-none"
               >
@@ -152,7 +155,7 @@ export default function LandingPage() {
                 const Icon = cat.icon;
                 const isActive = selectedCategory === cat.name;
                 return (
-                  <button 
+                  <button
                     key={cat.name}
                     onClick={() => setSelectedCategory(cat.name)}
                     className="flex flex-col items-center gap-2 group focus:outline-none"
@@ -171,7 +174,7 @@ export default function LandingPage() {
       </section>
 
       {/* 3. INTERACTIVE "EVENTS NEAR YOU" QUICK CITIES BAR */}
-      <section className="w-full px-6 mt-16 relative z-10">
+      <section className="w-full px-6 mt-16 relative z-30">
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-zinc-950/40 border border-zinc-900 p-5 rounded-2xl">
             <div className="flex items-center gap-3">
@@ -201,20 +204,21 @@ export default function LandingPage() {
                 </button>
               ))}
               {/* More states dropdown */}
-              <select
-                value={selectedCity && !POPULAR_STATES.includes(selectedCity) ? selectedCity : ''}
-                onChange={(e) => e.target.value && handleCitySelect(e.target.value)}
-                className={`px-3 py-1.5 rounded-lg text-xxs font-black uppercase tracking-widest transition-all appearance-none cursor-pointer ${
-                  selectedCity && !POPULAR_STATES.includes(selectedCity)
-                    ? 'bg-[#E8441A] text-white border-transparent'
-                    : 'bg-zinc-900/60 border border-zinc-800 text-zinc-500 hover:text-zinc-200'
-                }`}
-              >
-                <option value="" className="bg-zinc-900 text-zinc-300">More States ▾</option>
-                {ALL_STATES.filter(s => !POPULAR_STATES.includes(s)).map(c => (
-                  <option key={c} value={c} className="bg-zinc-900 text-zinc-300">{c}</option>
-                ))}
-              </select>
+              <div className="w-40 z-50">
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'More States' },
+                    ...ALL_STATES.filter(s => !POPULAR_STATES.includes(s)).map(c => ({ value: c, label: c }))
+                  ]}
+                  value={selectedCity && !POPULAR_STATES.includes(selectedCity) ? selectedCity : ''}
+                  onChange={(val) => val && handleCitySelect(val)}
+                  placeholder="More States"
+                  className={selectedCity && !POPULAR_STATES.includes(selectedCity)
+                    ? '[&>button]:bg-[#E8441A] [&>button]:text-white [&>button]:border-transparent [&>button]:h-[26px] [&>button]:px-3 [&>button]:py-0.5 [&>button]:rounded-lg [&>button]:text-xxs [&>button]:font-black [&>button]:uppercase [&>button]:tracking-widest'
+                    : '[&>button]:bg-zinc-900/60 [&>button]:text-zinc-500 [&>button]:h-[26px] [&>button]:px-3 [&>button]:py-0.5 [&>button]:rounded-lg [&>button]:text-xxs [&>button]:font-black [&>button]:uppercase [&>button]:tracking-widest [&>button]:border-zinc-800 hover:[&>button]:text-zinc-200'
+                  }
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -230,14 +234,14 @@ export default function LandingPage() {
             </h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
+
               {/* Primary massive widescreen showcase */}
               <div className="lg:col-span-8 group relative rounded-3xl overflow-hidden border border-zinc-850 h-[380px] sm:h-[420px] flex flex-col justify-end p-6 sm:p-10 shadow-2xl transition-all hover:border-[#E8441A]/30">
-                <div 
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-105" 
+                <div
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-105"
                   style={{ backgroundImage: `linear-gradient(to top, rgba(8, 8, 14, 0.98) 10%, rgba(8, 8, 14, 0.35) 60%, rgba(8, 8, 14, 0) 100%), url('${spotlightEvents[0].cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=800'}')` }}
                 />
-                
+
                 <div className="relative z-10 flex flex-col gap-3 max-w-xl">
                   <div className="flex items-center gap-2">
                     <Badge className="bg-[#E8441A] font-black text-[9px] tracking-widest px-2.5 py-0.5">
@@ -249,12 +253,12 @@ export default function LandingPage() {
                       </Badge>
                     )}
                   </div>
-                  
+
                   <span className="text-xs font-black text-[#E8441A] uppercase tracking-widest flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
                     {formatDate(spotlightEvents[0].event_date)}
                   </span>
-                  
+
                   <h3 className="text-2xl sm:text-4xl font-black text-white font-syne uppercase tracking-tight group-hover:text-[#E8441A] transition-colors leading-[1.1]">
                     {spotlightEvents[0].title}
                   </h3>
@@ -266,11 +270,18 @@ export default function LandingPage() {
 
                   <div className="flex items-center justify-between border-t border-zinc-800/60 pt-5 mt-3">
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-bold text-zinc-550 uppercase tracking-widest">TICKET STARTS AT</span>
+                      <span className="text-[9px] font-bold text-zinc-550 uppercase tracking-widest">TICKETS</span>
                       <span className="text-lg font-black text-white">
-                        {spotlightEvents[0].ticket_tiers && spotlightEvents[0].ticket_tiers.length > 0
-                          ? formatNaira(Math.min(...spotlightEvents[0].ticket_tiers.map(t => t.price)))
-                          : 'FREE ENTRY'}
+                        {(() => {
+                          const tiers = spotlightEvents[0].ticket_tiers || [];
+                          const hasFree = tiers.some(t => t.price === 0);
+                          const hasPaid = tiers.some(t => t.price > 0);
+                          const startPrice = hasPaid ? Math.min(...tiers.filter(t => t.price > 0).map(t => t.price)) : 0;
+
+                          if (hasFree && hasPaid) return 'Free & Paid';
+                          if (hasPaid) return `From ${formatNaira(startPrice)}`;
+                          return 'FREE ENTRY';
+                        })()}
                       </span>
                     </div>
                     <Link href={`/events/${spotlightEvents[0].slug}`}>
@@ -286,32 +297,35 @@ export default function LandingPage() {
               {/* Auxiliary Spotlight list grids */}
               <div className="lg:col-span-4 flex flex-col gap-6 justify-between">
                 {spotlightEvents.slice(1, 3).map((event) => {
-                  const startingPrice = event.ticket_tiers && event.ticket_tiers.length > 0
-                    ? Math.min(...event.ticket_tiers.map(t => t.price))
+                  const activeTiers = event.ticket_tiers || [];
+                  const hasFreeTier = activeTiers.some(t => t.price === 0);
+                  const hasPaidTier = activeTiers.some(t => t.price > 0);
+                  const startingPrice = hasPaidTier
+                    ? Math.min(...activeTiers.filter(t => t.price > 0).map(t => t.price))
                     : 0;
 
                   return (
-                    <div 
+                    <div
                       key={event.id}
                       className="group flex-1 relative rounded-3xl overflow-hidden border border-zinc-850 p-6 flex flex-col justify-end shadow-2xl h-[180px] sm:h-[195px] transition-all hover:border-[#E8441A]/30"
                     >
-                      <div 
-                        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-105" 
+                      <div
+                        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-105"
                         style={{ backgroundImage: `linear-gradient(to top, rgba(8, 8, 14, 0.95) 20%, rgba(8, 8, 14, 0.25) 70%, rgba(8, 8, 14, 0) 100%), url('${event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=800'}')` }}
                       />
-                      
+
                       <div className="relative z-10 flex flex-col gap-1.5">
                         <span className="text-[10px] font-black text-[#E8441A] uppercase tracking-widest flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" /> {formatDate(event.event_date)}
                         </span>
-                        
+
                         <h4 className="text-lg font-black text-white font-syne uppercase tracking-tight line-clamp-1 group-hover:text-[#E8441A] transition-colors">
                           {event.title}
                         </h4>
 
                         <div className="flex items-center justify-between pt-2.5 mt-1 border-t border-zinc-800/40">
                           <span className="text-sm font-extrabold text-white">
-                            {startingPrice > 0 ? formatNaira(startingPrice) : 'FREE'}
+                            {hasFreeTier && hasPaidTier ? 'Free/Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'FREE')}
                           </span>
                           <Link href={`/events/${event.slug}`} className="text-xxs font-black uppercase tracking-widest text-[#E8441A] group-hover:text-[#ff5d35] flex items-center gap-0.5">
                             <span>Get Tickets</span>
@@ -349,26 +363,45 @@ export default function LandingPage() {
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {[1, 2, 3].map((n) => (
-                <div key={n} className="h-[400px] w-full rounded-3xl bg-zinc-950/60 animate-pulse border border-zinc-900/60" />
+                <div key={n} className="h-[400px] w-full rounded-3xl bg-zinc-950/20 border border-zinc-900/80 overflow-hidden flex flex-col justify-between">
+                  <div>
+                    <div className="h-52 w-full bg-zinc-900/40 animate-pulse" />
+                    <div className="p-6 flex flex-col gap-4">
+                      <div className="w-24 h-3 bg-zinc-900/50 rounded animate-pulse" />
+                      <div className="w-3/4 h-5 bg-zinc-800/50 rounded animate-pulse" />
+                      <div className="w-1/2 h-3 bg-zinc-900/50 rounded animate-pulse mt-1" />
+                    </div>
+                  </div>
+                  <div className="px-6 pb-6 pt-4 border-t border-zinc-900/60 flex items-center justify-between">
+                    <div className="flex flex-col gap-2">
+                      <div className="w-12 h-2 bg-zinc-900/50 rounded animate-pulse" />
+                      <div className="w-16 h-4 bg-zinc-800/50 rounded animate-pulse" />
+                    </div>
+                    <div className="w-24 h-8 bg-zinc-900/50 rounded-xl animate-pulse" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : remainingEvents.length > 0 || (spotlightEvents.length > 0 && remainingEvents.length === 0) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              
+
               {/* Fallback to original list if spotlight divides too aggressively */}
               {(remainingEvents.length > 0 ? remainingEvents : events || []).map((event) => {
                 const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600';
-                const startingPrice = event.ticket_tiers && event.ticket_tiers.length > 0
-                  ? Math.min(...event.ticket_tiers.map(t => t.price))
+                const activeTiers = event.ticket_tiers || [];
+                const hasFreeTier = activeTiers.some(t => t.price === 0);
+                const hasPaidTier = activeTiers.some(t => t.price > 0);
+                const startingPrice = hasPaidTier
+                  ? Math.min(...activeTiers.filter(t => t.price > 0).map(t => t.price))
                   : 0;
-                
+
                 const catData = CATEGORIES.find(c => c.name === event.category);
                 const badgeGradient = catData ? catData.gradient : 'from-[#E8441A] to-[#ff7d59]';
 
                 return (
                   <Card key={event.id} className="group hover:-translate-y-2 transition-all duration-500 border-zinc-900/80 bg-zinc-950/20 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col justify-between h-full">
                     <div className="absolute inset-0 border border-transparent group-hover:border-[#E8441A]/15 rounded-2xl pointer-events-none transition-colors duration-500" />
-                    
+
                     <div>
                       {/* Cover image wrap */}
                       <div className="relative h-52 w-full overflow-hidden">
@@ -379,7 +412,7 @@ export default function LandingPage() {
                           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#08080E] via-transparent to-transparent" />
-                        
+
                         <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
                           <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${badgeGradient}`}>
                             {getCategoryLabel(event.category, event.custom_category)}
@@ -415,7 +448,7 @@ export default function LandingPage() {
                       <div className="flex flex-col">
                         <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Entry Fee</span>
                         <span className="text-sm font-extrabold text-white">
-                          {startingPrice > 0 ? formatNaira(startingPrice) : 'FREE'}
+                          {hasFreeTier && hasPaidTier ? 'Free & Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'FREE')}
                         </span>
                       </div>
                       <Link href={`/events/${event.slug}`}>
@@ -445,7 +478,7 @@ export default function LandingPage() {
       <section className="w-full px-6 mt-32 relative z-10">
         <div className="mx-auto max-w-6xl border-t border-zinc-900 pt-20">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            
+
             <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
               <div className="w-10 h-10 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A] shrink-0">
                 <Lock className="h-5 w-5" />
@@ -502,11 +535,11 @@ export default function LandingPage() {
       <section className="w-full px-6 mt-28 relative z-10">
         <div className="mx-auto max-w-6xl">
           <div className="relative w-full rounded-[32px] bg-gradient-to-r from-zinc-950 to-zinc-900/80 border border-zinc-850 p-8 sm:p-12 lg:p-16 overflow-hidden flex flex-col items-center text-center">
-            
+
             {/* Ambient glows inside card */}
             <div className="absolute right-0 top-0 w-80 h-80 rounded-full bg-[#E8441A]/10 blur-[100px] pointer-events-none" />
             <div className="absolute left-0 bottom-0 w-80 h-80 rounded-full bg-purple-500/5 blur-[100px] pointer-events-none" />
-            
+
             <div className="relative z-10 max-w-2xl flex flex-col items-center">
               <Badge className="mb-6 font-bold bg-[#E8441A]/10 border border-[#E8441A]/20 text-[#E8441A] tracking-widest px-3.5 py-1">
                 HOST A VIBE

@@ -80,8 +80,10 @@ export default function EventDetailPage() {
 
   const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=1200';
   const activeTiers = event.ticket_tiers || event.tiers || [];
-  const startingPrice = activeTiers.length > 0
-    ? Math.min(...activeTiers.map(t => t.price))
+  const hasFreeTier = activeTiers.some(t => t.price === 0);
+  const hasPaidTier = activeTiers.some(t => t.price > 0);
+  const startingPrice = activeTiers.length > 0 && hasPaidTier
+    ? Math.min(...activeTiers.filter(t => t.price > 0).map(t => t.price))
     : 0;
   const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
 
@@ -225,7 +227,9 @@ export default function EventDetailPage() {
                           <span className="text-xs text-zinc-500">{tier.description || 'Standard entry gate access'}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-base font-black text-[#E8441A]">{formatNaira(tier.price)}</span>
+                          <span className="text-base font-black text-[#E8441A]">
+                            {tier.price === 0 ? 'FREE' : formatNaira(tier.price)}
+                          </span>
                           <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${isSoldOut ? 'bg-red-950/40 text-red-400 border border-red-900/40' : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40'}`}>
                             {isSoldOut ? 'Sold Out' : 'Available'}
                           </span>
@@ -281,7 +285,9 @@ export default function EventDetailPage() {
                 <div>
                   <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Tickets From</p>
                   <p className="text-2xl font-black text-white font-syne mt-1">
-                    {startingPrice > 0 ? formatNaira(startingPrice) : 'FREE ENTRY'}
+                    {hasFreeTier && hasPaidTier 
+                      ? 'Free & Paid Options' 
+                      : (hasPaidTier ? formatNaira(startingPrice) : 'FREE ENTRY')}
                   </p>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${gradient}`}>

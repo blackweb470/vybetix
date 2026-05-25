@@ -41,8 +41,7 @@ function LoginContent() {
         }
       }
       
-      router.push(targetUrl);
-      router.refresh();
+      window.location.href = targetUrl;
     } catch (err: any) {
       toast({ title: 'Login failed', description: err.response?.data?.message || err.message || 'No account found for this email', variant: 'destructive' });
     }

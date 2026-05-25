@@ -79,8 +79,7 @@ export function useAuth() {
 
   const logout = () => {
     clearAuth();
-    router.push('/');
-    router.refresh();
+    window.location.href = '/';
   };
 
   return {

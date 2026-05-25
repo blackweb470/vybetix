@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useEvent, useUpdateEvent, useUniversities, useUploadCoverImage } from '../../../../../hooks/useEvents';
+import { useEvent, useUpdateEvent, useUniversities, useUploadCoverImage, useDeleteEvent } from '../../../../../hooks/useEvents';
 import { useToast } from '../../../../../components/ui/toast';
 import { formatNaira } from '../../../../../lib/utils';
 import { Calendar, ArrowLeft, ArrowRight, Plus, Trash2, CheckCircle, FileText, MapPin, Ticket, GraduationCap, Disc, Upload, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
+import { SearchableSelect } from '../../../../../components/ui/searchable-select';
 
 const CATEGORY_OPTIONS = [
   { value: 'music', label: 'Music & Concerts' },
@@ -61,6 +62,7 @@ const CITY_OPTIONS = [
 interface TicketTierForm {
   id?: string;
   name: string;
+  type?: 'free' | 'paid';
   price: string;
   quantity: string;
   description: string;
@@ -81,6 +83,7 @@ export default function EditEventWizardPage() {
   const eventId = params?.id as string;
   const { data: event, isLoading: isEventLoading, error: eventError } = useEvent(eventId);
   const updateMutation = useUpdateEvent();
+  const deleteMutation = useDeleteEvent();
   const { data: universities } = useUniversities();
   const uploadMutation = useUploadCoverImage();
   
@@ -105,7 +108,7 @@ export default function EditEventWizardPage() {
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('lagos');
   const [tiers, setTiers] = useState<TicketTierForm[]>([
-    { name: 'Standard Gate', price: '5000', quantity: '200', description: 'General access entry' }
+    { name: 'Standard Gate', type: 'paid', price: '5000', quantity: '200', description: 'General access entry' }
   ]);
 
   // Pre-fill form when event data is loaded
@@ -166,6 +169,7 @@ export default function EditEventWizardPage() {
         setTiers(event.tiers.map((t: any) => ({
           id: t.id,
           name: t.name || '',
+          type: (t.price === 0 || t.price === '0') ? 'free' : 'paid',
           price: String(t.price ? t.price / 100 : 0),
           quantity: String(t.quantity || 0),
           description: t.description || ''
@@ -178,7 +182,7 @@ export default function EditEventWizardPage() {
 
   const inputCls = "h-11 w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 text-sm text-zinc-100 placeholder-zinc-600 focus:border-[#E8441A] focus:outline-none focus:ring-2 focus:ring-[#E8441A]/20 transition-all";
 
-  const handleAddTier = () => setTiers([...tiers, { name: '', price: '', quantity: '', description: '' }]);
+  const handleAddTier = () => setTiers([...tiers, { name: '', type: 'paid', price: '', quantity: '', description: '' }]);
   const handleRemoveTier = (i: number) => {
     if (tiers.length === 1) {
       toast({ title: 'Minimum 1 tier required', variant: 'destructive' });
@@ -208,7 +212,7 @@ export default function EditEventWizardPage() {
     if (step === 2 && (!eventDate || !eventTime || !endDate || !endTime || !venue)) {
       toast({ title: 'Missing info', description: 'Complete start date, end date, time and venue', variant: 'destructive' }); return;
     }
-    if (step === 3 && tiers.some(t => !t.name || !t.price || !t.quantity)) {
+    if (step === 3 && tiers.some(t => !t.name || (t.type === 'paid' && !t.price) || !t.quantity)) {
       toast({ title: 'Incomplete tier', description: 'Complete all tier fields name, price and quantity', variant: 'destructive' }); return;
     }
     setStep(step + 1);
@@ -254,7 +258,7 @@ export default function EditEventWizardPage() {
         tiers.map(t => ({
           id: t.id,
           name: t.name,
-          price: Math.round(parseFloat(t.price) * 100),
+          price: t.type === 'free' ? 0 : Math.round(parseFloat(t.price || '0') * 100),
           quantity: parseInt(t.quantity),
           description: t.description || 'Standard access'
         }))
@@ -263,9 +267,20 @@ export default function EditEventWizardPage() {
       await updateMutation.mutateAsync({ id: eventId, formData });
       toast({ title: 'Event Updated!', description: 'Your changes have been saved.', variant: 'success' });
       router.push('/dashboard');
-      router.refresh();
     } catch (err: any) {
       toast({ title: 'Failed to update', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (confirm('Are you absolutely sure you want to delete this event? This action cannot be undone.')) {
+      try {
+        await deleteMutation.mutateAsync(eventId);
+        toast({ title: 'Event Deleted', description: 'Your event has been successfully deleted.', variant: 'success' });
+        router.push('/dashboard');
+      } catch (err: any) {
+        toast({ title: 'Failed to delete', description: err.response?.data?.message || err.message, variant: 'destructive' });
+      }
     }
   };
 
@@ -351,9 +366,12 @@ export default function EditEventWizardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Category</label>
-                  <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls}>
-                    {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value} className="bg-zinc-900">{o.label}</option>)}
-                  </select>
+                  <SearchableSelect
+                    options={CATEGORY_OPTIONS}
+                    value={category}
+                    onChange={setCategory}
+                    placeholder="Select a category..."
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Event Cover Image</label>
@@ -496,9 +514,12 @@ export default function EditEventWizardPage() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">City</label>
-                <select value={city} onChange={e => setCity(e.target.value)} className={inputCls}>
-                  {CITY_OPTIONS.map(o => <option key={o.value} value={o.value} className="bg-zinc-900">{o.label}</option>)}
-                </select>
+                <SearchableSelect
+                  options={CITY_OPTIONS}
+                  value={city}
+                  onChange={setCity}
+                  placeholder="Select a State / City..."
+                />
               </div>
             </div>
           )}
@@ -523,18 +544,38 @@ export default function EditEventWizardPage() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Tier Name</label>
-                        <input type="text" placeholder="VIP Pass" value={tier.name} onChange={e => handleTierChange(idx, 'name', e.target.value)} className={inputCls} />
+                    <div className="flex flex-col gap-3">
+                      <div className="flex bg-zinc-900 p-1 rounded-xl w-full sm:w-fit justify-between sm:justify-start">
+                        <button 
+                          type="button"
+                          onClick={() => handleTierChange(idx, 'type', 'free')}
+                          className={`flex-1 sm:flex-none sm:px-6 px-4 py-2 sm:py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'free' ? 'bg-[#E8441A] text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          Free
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => handleTierChange(idx, 'type', 'paid')}
+                          className={`flex-1 sm:flex-none sm:px-6 px-4 py-2 sm:py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tier.type === 'paid' ? 'bg-[#E8441A] text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          Paid
+                        </button>
                       </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Price (₦)</label>
-                        <input type="number" placeholder="15000" value={tier.price} onChange={e => handleTierChange(idx, 'price', e.target.value)} className={inputCls} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Quantity</label>
-                        <input type="number" placeholder="150" value={tier.quantity} onChange={e => handleTierChange(idx, 'quantity', e.target.value)} className={inputCls} />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Tier Name</label>
+                          <input type="text" placeholder="VIP Pass" value={tier.name} onChange={e => handleTierChange(idx, 'name', e.target.value)} className={inputCls} />
+                        </div>
+                        {tier.type === 'paid' && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Price (₦)</label>
+                            <input type="number" placeholder="15000" value={tier.price} onChange={e => handleTierChange(idx, 'price', e.target.value)} className={inputCls} />
+                          </div>
+                        )}
+                        <div className={`flex flex-col gap-1.5 ${tier.type === 'free' ? 'sm:col-span-2' : ''}`}>
+                          <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Quantity</label>
+                          <input type="number" placeholder="150" value={tier.quantity} onChange={e => handleTierChange(idx, 'quantity', e.target.value)} className={inputCls} />
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -590,6 +631,15 @@ export default function EditEventWizardPage() {
               )}
               <button type="button" onClick={() => router.push('/dashboard')} className="text-xs font-black uppercase tracking-widest text-zinc-650 hover:text-white transition-colors px-3 py-2">
                 Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={handleDelete} 
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all ml-2"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete Event'}
               </button>
             </div>
             {step < 4 ? (

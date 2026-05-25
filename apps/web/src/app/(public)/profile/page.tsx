@@ -23,6 +23,7 @@ import {
   UserCheck,
   AlertCircle
 } from 'lucide-react';
+import { SearchableSelect } from '../../../components/ui/searchable-select';
 
 interface Bank {
   name: string;
@@ -404,22 +405,12 @@ export default function ProfilePage() {
                           Retrieving settlement banks...
                         </div>
                       ) : (
-                        <select
+                        <SearchableSelect
+                          options={banks.map(bank => ({ value: `${bank.code}:${bank.name}`, label: bank.name }))}
                           value={bankName}
-                          onChange={e => setBankName(e.target.value)}
-                          className={`${inputCls} appearance-none cursor-pointer`}
-                        >
-                          <option value="" disabled className="bg-zinc-950 text-zinc-500">Select Settlement Bank...</option>
-                          {banks.map(bank => (
-                            <option 
-                              key={bank.code} 
-                              value={`${bank.code}:${bank.name}`}
-                              className="bg-zinc-950 text-zinc-150 py-1"
-                            >
-                              {bank.name}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={setBankName}
+                          placeholder="Select Settlement Bank..."
+                        />
                       )}
                     </div>
                   </div>

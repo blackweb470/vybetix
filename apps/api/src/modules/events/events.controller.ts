@@ -24,7 +24,7 @@ export const createEventSchema = z.object({
     name: z.string().min(2, 'Tier name is required'),
     description: z.string().min(5, 'Tier description is required'),
     price: z.number().int().nonnegative('Price must be in kobo and non-negative'),
-    quantity: z.number().int().positive('Quantity must be positive'),
+    quantity: z.number().int().nonnegative('Quantity must be non-negative'),
     maxPerOrder: z.number().int().positive().default(5)
   })).optional()
 });
@@ -35,7 +35,7 @@ export const updateEventSchema = createEventSchema.extend({
     name: z.string().min(2, 'Tier name is required'),
     description: z.string().min(5, 'Tier description is required'),
     price: z.number().int().nonnegative('Price must be in kobo and non-negative'),
-    quantity: z.number().int().positive('Quantity must be positive'),
+    quantity: z.number().int().nonnegative('Quantity must be non-negative'),
     maxPerOrder: z.number().int().positive().default(5)
   })).optional()
 }).partial();
@@ -77,8 +77,14 @@ export const eventsController = {
    */
   list: async (req: Request, res: Response) => {
     try {
-      const { category, city, universityId, isUniversityOnly, search } = req.query;
+      const { category, city, universityId, isUniversityOnly, search, limit, page } = req.query;
       const now = new Date().toISOString();
+
+      // Pagination defaults
+      const parsedLimit = parseInt(limit as string) || 50; // Default max 50 per request
+      const parsedPage = parseInt(page as string) || 1;
+      const from = (parsedPage - 1) * parsedLimit;
+      const to = from + parsedLimit - 1;
 
       let query = supabase
         .from('events')
@@ -110,8 +116,8 @@ export const eventsController = {
         query = query.gt('end_date', now);
       }
 
-      // Order by event date ascending
-      query = query.order('event_date', { ascending: true });
+      // Order by event date ascending and apply pagination
+      query = query.order('event_date', { ascending: true }).range(from, to);
 
       const { data: eventsList, error: queryError } = await query;
 
@@ -239,13 +245,22 @@ export const eventsController = {
       if (req.body.custom_category && !req.body.customCategory) req.body.customCategory = req.body.custom_category;
       if (req.body.custom_university && !req.body.customUniversity) req.body.customUniversity = req.body.custom_university;
 
+      if (req.body.universityId === '') req.body.universityId = null;
+      if (req.body.university_id === '') req.body.universityId = null;
+      if (req.body.customCategory === '') req.body.customCategory = null;
+      if (req.body.customUniversity === '') req.body.customUniversity = null;
+
       if (typeof req.body.isUniversityOnly === 'string') {
         req.body.isUniversityOnly = req.body.isUniversityOnly === 'true';
+      }
+      
+      if (req.body.ticket_tiers && !req.body.tiers) {
+        req.body.tiers = req.body.ticket_tiers;
       }
       if (typeof req.body.tiers === 'string') {
         try {
           req.body.tiers = JSON.parse(req.body.tiers);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const parsedData = createEventSchema.parse(req.body);
@@ -354,6 +369,11 @@ export const eventsController = {
       if (req.body.custom_category && !req.body.customCategory) req.body.customCategory = req.body.custom_category;
       if (req.body.custom_university && !req.body.customUniversity) req.body.customUniversity = req.body.custom_university;
 
+      if (req.body.universityId === '') req.body.universityId = null;
+      if (req.body.university_id === '') req.body.universityId = null;
+      if (req.body.customCategory === '') req.body.customCategory = null;
+      if (req.body.customUniversity === '') req.body.customUniversity = null;
+
       if (typeof req.body.isUniversityOnly === 'string') {
         req.body.isUniversityOnly = req.body.isUniversityOnly === 'true';
       }
@@ -364,7 +384,7 @@ export const eventsController = {
       if (typeof req.body.tiers === 'string') {
         try {
           req.body.tiers = JSON.parse(req.body.tiers);
-        } catch (e) {}
+        } catch (e) { }
       }
       const parsedData = updateEventSchema.parse(req.body);
       const newSlug = parsedData.title ? generateSlug(parsedData.title) : undefined;
@@ -571,6 +591,7 @@ export const eventsController = {
       console.error('Upload cover error:', err);
       return error(res, 'Upload error', err.message, 500);
     }
-  }
+  },
+
 };
 

@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useEvents } from '../../../hooks/useEvents';
 import { Badge } from '../../../components/ui/badge';
+import { SearchableSelect } from '../../../components/ui/searchable-select';
 import { formatNaira, formatDate } from '../../../lib/utils';
 import Link from 'next/link';
 import { 
@@ -113,8 +114,10 @@ function EventShelf({ title, subtitle, events }: ShelfProps) {
           {events.map((event) => {
             const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600';
             const activeTiers = event.ticket_tiers || event.tiers || [];
-            const startingPrice = activeTiers.length > 0
-              ? Math.min(...activeTiers.map((t: any) => t.price))
+            const hasFreeTier = activeTiers.some((t: any) => t.price === 0);
+            const hasPaidTier = activeTiers.some((t: any) => t.price > 0);
+            const startingPrice = hasPaidTier
+              ? Math.min(...activeTiers.filter((t: any) => t.price > 0).map((t: any) => t.price))
               : 0;
             const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
 
@@ -164,7 +167,7 @@ function EventShelf({ title, subtitle, events }: ShelfProps) {
                       <div>
                         <p className="text-[8px] font-black text-zinc-650 uppercase tracking-widest">From</p>
                         <p className="text-xs sm:text-sm font-extrabold text-white">
-                          {startingPrice > 0 ? formatNaira(startingPrice) : 'Free'}
+                          {hasFreeTier && hasPaidTier ? 'Free/Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'Free')}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 text-[9px] font-black text-[#E8441A] uppercase tracking-widest group-hover:gap-1.5 transition-all">
@@ -195,6 +198,7 @@ export default function EventsListingPage() {
     city: selectedCity,
     category: selectedCategory === 'all' ? undefined : selectedCategory,
     isUniversityOnly: showCampusOnly || undefined,
+    limit: 100, // Fetch up to 100 recent/trending events to populate all the shelves
   };
 
   const { data: events, isLoading } = useEvents(filters);
@@ -252,16 +256,16 @@ export default function EventsListingPage() {
             </div>
 
             {/* City dropdown */}
-            <div className="relative">
-              <select
+            <div className="w-48 z-50">
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Cities' },
+                  ...CITY_OPTIONS.map(c => ({ value: c.toLowerCase().replace(' ', '_'), label: c }))
+                ]}
                 value={selectedCity || ''}
-                onChange={(e) => setSelectedCity(e.target.value || undefined)}
-                className="h-10 rounded-xl border border-zinc-800 bg-zinc-900/60 pl-3 pr-8 text-sm text-zinc-300 focus:border-[#E8441A] focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="">All Cities</option>
-                {CITY_OPTIONS.map(c => <option key={c} value={c} className="bg-zinc-900">{c}</option>)}
-              </select>
-              <MapPin className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+                onChange={(val) => setSelectedCity(val || undefined)}
+                placeholder="All Cities"
+              />
             </div>
           </div>
         </div>
@@ -310,7 +314,23 @@ export default function EventsListingPage() {
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-              <div key={n} className="h-80 rounded-2xl bg-zinc-950/60 animate-pulse border border-zinc-900/60" />
+              <div key={n} className="h-80 rounded-2xl border border-zinc-900/80 bg-zinc-950/30 overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="h-44 w-full bg-zinc-900/40 animate-pulse" />
+                  <div className="p-4 flex flex-col gap-3">
+                    <div className="w-20 h-3 bg-zinc-900/50 rounded animate-pulse" />
+                    <div className="w-full h-4 bg-zinc-800/50 rounded animate-pulse" />
+                    <div className="w-2/3 h-3 bg-zinc-900/50 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="px-4 pb-4 pt-2 border-t border-zinc-900/50 flex items-center justify-between">
+                  <div className="flex flex-col gap-2">
+                    <div className="w-10 h-2 bg-zinc-900/50 rounded animate-pulse" />
+                    <div className="w-16 h-4 bg-zinc-800/50 rounded animate-pulse" />
+                  </div>
+                  <div className="w-16 h-3 bg-zinc-900/50 rounded animate-pulse" />
+                </div>
+              </div>
             ))}
           </div>
         ) : isFiltering ? (
@@ -328,8 +348,10 @@ export default function EventsListingPage() {
                   {events.map((event) => {
                     const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600';
                     const activeTiers = event.ticket_tiers || event.tiers || [];
-                    const startingPrice = activeTiers.length > 0
-                      ? Math.min(...activeTiers.map((t: any) => t.price))
+                    const hasFreeTier = activeTiers.some((t: any) => t.price === 0);
+                    const hasPaidTier = activeTiers.some((t: any) => t.price > 0);
+                    const startingPrice = hasPaidTier
+                      ? Math.min(...activeTiers.filter((t: any) => t.price > 0).map((t: any) => t.price))
                       : 0;
                     const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
                     const isEnded = event.is_ended ||
@@ -383,7 +405,7 @@ export default function EventsListingPage() {
                             <div>
                               <p className="text-[8px] font-black text-zinc-650 uppercase tracking-widest">From</p>
                               <p className="text-sm font-extrabold text-white">
-                                {startingPrice > 0 ? formatNaira(startingPrice) : 'Free'}
+                                {hasFreeTier && hasPaidTier ? 'Free & Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'Free')}
                               </p>
                             </div>
                             {isEnded ? (
@@ -454,9 +476,15 @@ export default function EventsListingPage() {
                       </p>
                       <div className="flex items-center justify-between border-t border-zinc-800/60 pt-4 mt-2">
                         <span className="text-xs font-black text-white">
-                          From {spotlightEvents[0].ticket_tiers && spotlightEvents[0].ticket_tiers.length > 0
-                            ? formatNaira(Math.min(...spotlightEvents[0].ticket_tiers.map((t: any) => t.price)))
-                            : 'Free'}
+                          {(() => {
+                            const tiers = spotlightEvents[0].ticket_tiers || [];
+                            const hasFree = tiers.some((t: any) => t.price === 0);
+                            const hasPaid = tiers.some((t: any) => t.price > 0);
+                            const startPrice = hasPaid ? Math.min(...tiers.filter((t: any) => t.price > 0).map((t: any) => t.price)) : 0;
+                            if (hasFree && hasPaid) return 'Free & Paid';
+                            if (hasPaid) return `From ${formatNaira(startPrice)}`;
+                            return 'FREE';
+                          })()}
                         </span>
                         <Link href={`/events/${spotlightEvents[0].slug}`}>
                           <button className="px-5 py-2.5 rounded-xl bg-white text-black hover:bg-[#E8441A] hover:text-white transition-all duration-300 text-xxs font-black uppercase tracking-widest flex items-center gap-1">
@@ -471,8 +499,11 @@ export default function EventsListingPage() {
                   {/* Secondary auxiliary spotlight cards */}
                   <div className="lg:col-span-4 flex flex-col gap-6 justify-between h-[320px] sm:h-[360px]">
                     {spotlightEvents.slice(1, 3).map((event) => {
-                      const startingPrice = event.ticket_tiers && event.ticket_tiers.length > 0
-                        ? Math.min(...event.ticket_tiers.map((t: any) => t.price))
+                      const activeTiers = event.ticket_tiers || [];
+                      const hasFreeTier = activeTiers.some((t: any) => t.price === 0);
+                      const hasPaidTier = activeTiers.some((t: any) => t.price > 0);
+                      const startingPrice = hasPaidTier
+                        ? Math.min(...activeTiers.filter((t: any) => t.price > 0).map((t: any) => t.price))
                         : 0;
 
                       return (
@@ -493,7 +524,7 @@ export default function EventsListingPage() {
                             </h4>
                             <div className="flex items-center justify-between pt-2 mt-1 border-t border-zinc-800/40">
                               <span className="text-xs font-black text-white">
-                                {startingPrice > 0 ? formatNaira(startingPrice) : 'Free'}
+                                {hasFreeTier && hasPaidTier ? 'Free/Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'Free')}
                               </span>
                               <Link href={`/events/${event.slug}`} className="text-[10px] font-black uppercase tracking-widest text-[#E8441A] group-hover:text-[#ff5d35] flex items-center gap-0.5">
                                 <span>Get Tickets</span>

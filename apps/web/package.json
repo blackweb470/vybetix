@@ -11,7 +11,9 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@paystack/inline-js": "^2.22.8",
+    "@tanstack/query-sync-storage-persister": "^5.100.14",
     "@tanstack/react-query": "^5.100.10",
+    "@tanstack/react-query-persist-client": "^5.100.14",
     "@vibetix/shared": "*",
     "@yudiel/react-qr-scanner": "^2.0.8",
     "axios": "^1.16.1",

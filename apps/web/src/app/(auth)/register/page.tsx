@@ -10,6 +10,7 @@ import { api } from '../../../lib/api';
 import Link from 'next/link';
 import { Disc, UserPlus, Ticket, Building2, CheckCircle2, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
+import { SearchableSelect } from '../../../components/ui/searchable-select';
 
 interface Bank {
   name: string;
@@ -132,9 +133,8 @@ function RegisterContent() {
       };
       const session = await register(payload);
       toast({ title: 'Account Created!', description: `Welcome, ${session.user.full_name}`, variant: 'success' });
-      const targetUrl = redirectUrl === '/' ? '/events' : redirectUrl;
-      router.push(role === 'organizer' ? '/dashboard' : targetUrl);
-      router.refresh();
+      const targetUrl = role === 'organizer' ? '/dashboard' : (redirectUrl === '/' ? '/events' : redirectUrl);
+      window.location.href = targetUrl;
     } catch (err: any) {
       toast({ title: 'Signup failed', description: err.response?.data?.message || err.message || 'Email might already be registered', variant: 'destructive' });
     }
@@ -269,19 +269,12 @@ function RegisterContent() {
                         Retrieving banks...
                       </div>
                     ) : (
-                      <select
+                      <SearchableSelect
+                        options={banks.map(bank => ({ value: `${bank.code}:${bank.name}`, label: bank.name }))}
                         value={bankName}
-                        onChange={e => setBankName(e.target.value)}
-                        required
-                        className={`${inputCls} appearance-none cursor-pointer`}
-                      >
-                        <option value="" disabled className="bg-zinc-950 text-zinc-500">Select Bank...</option>
-                        {banks.map(bank => (
-                          <option key={bank.code} value={`${bank.code}:${bank.name}`} className="bg-zinc-950 text-zinc-150 py-1">
-                            {bank.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setBankName}
+                        placeholder="Select Bank..."
+                      />
                     )}
                   </div>
                   

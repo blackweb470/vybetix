@@ -13,6 +13,7 @@ export default function OrganizerDashboardPage() {
   const { data: events, isLoading, error } = useOrganizerEvents();
   const { toast } = useToast();
   const [mounted, setMounted] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<'live' | 'past'>('live');
 
   const handleShare = (slug: string) => {
     const url = `${window.location.origin}/events/${slug}`;
@@ -24,7 +25,12 @@ export default function OrganizerDashboardPage() {
     setMounted(true);
   }, []);
 
-  const totalEvents = events?.length || 0;
+  const now = new Date();
+  const liveEvents = events?.filter(ev => new Date(ev.end_date || ev.event_date) > now) || [];
+  const pastEvents = events?.filter(ev => new Date(ev.end_date || ev.event_date) <= now) || [];
+  const displayedEvents = activeTab === 'live' ? liveEvents : pastEvents;
+
+  const totalEvents = liveEvents.length;
   const totalCapacity = events?.reduce((sum, ev) => sum + (ev.ticket_tiers?.reduce((s: number, t: any) => s + t.quantity, 0) || 0), 0) || 0;
   const totalSold = events?.reduce((sum, ev) => sum + (ev.ticket_tiers?.reduce((s: number, t: any) => s + (t.sold || 0), 0) || 0), 0) || 0;
   const estimatedSalesKobo = events?.reduce((sum, ev) => sum + (ev.ticket_tiers?.reduce((s: number, t: any) => s + ((t.sold || 0) * t.price), 0) || 0), 0) || 0;
@@ -95,11 +101,27 @@ export default function OrganizerDashboardPage() {
           </div>
         )}
 
-        {/* Events header */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900/60">
-          <h2 className="text-lg font-black text-white font-syne uppercase tracking-tight flex items-center gap-2">
-            <LayoutGrid className="h-5 w-5 text-[#E8441A]" />My Hosted Events
-          </h2>
+        {/* Events header and Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 pb-4 border-b border-zinc-900/60 gap-4">
+          <div className="flex items-center gap-6">
+            <h2 className="text-lg font-black text-white font-syne uppercase tracking-tight flex items-center gap-2">
+              <LayoutGrid className="h-5 w-5 text-[#E8441A]" />My Hosted Events
+            </h2>
+            <div className="flex items-center bg-zinc-900/50 p-1 rounded-xl">
+              <button 
+                onClick={() => setActiveTab('live')}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'live' ? 'bg-[#E8441A] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                Live ({liveEvents.length})
+              </button>
+              <button 
+                onClick={() => setActiveTab('past')}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'past' ? 'bg-[#E8441A] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                Past ({pastEvents.length})
+              </button>
+            </div>
+          </div>
           <Link href="/events/create" className="flex items-center gap-1 text-xs font-black text-zinc-500 hover:text-[#E8441A] uppercase tracking-widest transition-colors group">
             Add<ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </Link>
@@ -115,9 +137,9 @@ export default function OrganizerDashboardPage() {
           <div className="text-center py-16 border border-dashed border-zinc-900 rounded-3xl">
             <p className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Failed to load. Please refresh.</p>
           </div>
-        ) : events && events.length > 0 ? (
+        ) : displayedEvents && displayedEvents.length > 0 ? (
           <div className="flex flex-col gap-3">
-            {events.map((event) => {
+            {displayedEvents.map((event) => {
               const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=400';
               const soldQty = event.ticket_tiers?.reduce((s: number, t: any) => s + (t.sold || 0), 0) || 0;
               const totalQty = event.ticket_tiers?.reduce((s: number, t: any) => s + t.quantity, 0) || 0;
@@ -177,12 +199,16 @@ export default function OrganizerDashboardPage() {
               <Calendar className="h-8 w-8 text-zinc-700" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">No Events Yet</h3>
-              <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">Create your first event and start selling tickets in minutes.</p>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">No {activeTab} Events</h3>
+              <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">
+                {activeTab === 'live' ? 'Create your first event and start selling tickets in minutes.' : 'You have not hosted any events yet.'}
+              </p>
             </div>
-            <Link href="/events/create" className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#E8441A] text-white text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-md shadow-[#E8441A]/15">
-              <Plus className="h-4 w-4" />Create First Event
-            </Link>
+            {activeTab === 'live' && (
+              <Link href="/events/create" className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#E8441A] text-white text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-md shadow-[#E8441A]/15">
+                <Plus className="h-4 w-4" />Create First Event
+              </Link>
+            )}
           </div>
         )}
       </div>
