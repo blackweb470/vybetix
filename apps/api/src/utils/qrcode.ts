@@ -37,33 +37,23 @@ export function verifyQRToken(token: string): { ticketId: string; timestamp: num
     const [ticketId, timestampStr, hmac] = parts;
     const rawPayload = `${ticketId}:${timestampStr}`;
 
-    // List of secrets to test for backward compatibility
-    const secretsToTest = [
-      QR_SECRET,
-      'vibetix_super_secret_crypto_key_2026',
-      'Vybetix_super_secret_crypto_key_2026',
-      'VibeTix_super_secret_crypto_key_2026'
-    ];
+    const expectedHmac = crypto.createHmac('sha256', QR_SECRET).update(rawPayload).digest('hex');
+    
+    const hmacBuf = Buffer.from(hmac);
+    const expectedBuf = Buffer.from(expectedHmac);
 
-    for (const secret of secretsToTest) {
-      const expectedHmac = crypto.createHmac('sha256', secret).update(rawPayload).digest('hex');
-      
-      const hmacBuf = Buffer.from(hmac);
-      const expectedBuf = Buffer.from(expectedHmac);
-
-      if (hmacBuf.length === expectedBuf.length && crypto.timingSafeEqual(hmacBuf, expectedBuf)) {
-        const tokenTime = parseInt(timestampStr, 10);
-        // Enforce 1-minute expiration (60000ms) with a 30s grace period for clock skew/scanning delay
-        if (Date.now() - tokenTime > 90000) {
-          console.warn(`[QR verify] Token for ticket ${ticketId} expired.`);
-          return null; 
-        }
-
-        return {
-          ticketId,
-          timestamp: tokenTime
-        };
+    if (hmacBuf.length === expectedBuf.length && crypto.timingSafeEqual(hmacBuf, expectedBuf)) {
+      const tokenTime = parseInt(timestampStr, 10);
+      // Enforce 1-minute expiration (60000ms) with a 30s grace period for clock skew/scanning delay
+      if (Date.now() - tokenTime > 90000) {
+        console.warn(`[QR verify] Token for ticket ${ticketId} expired.`);
+        return null; 
       }
+
+      return {
+        ticketId,
+        timestamp: tokenTime
+      };
     }
 
     return null;

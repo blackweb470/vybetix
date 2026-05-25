@@ -57,7 +57,21 @@ export const scannerController = {
 
       // 3. Authorization Check: Ensure active staff/organizer belongs to this event or is admin
       if (req.user?.role !== 'admin' && ticket.ticket_tiers.events.organizer_id !== req.user?.id) {
-        return error(res, 'Forbidden', 'You are not authorized to scan tickets for this event', 403);
+        if (!req.user?.id) {
+          return error(res, 'Forbidden', 'User ID missing', 403);
+        }
+
+        // We must check if the user is assigned as gate staff for this specific event
+        const { data: staffData } = await supabase
+          .from('event_staff')
+          .select('id')
+          .eq('event_id', ticket.ticket_tiers.events.id ?? ticket.ticket_tiers.event_id)
+          .eq('user_id', req.user.id)
+          .single();
+
+        if (!staffData) {
+          return error(res, 'Forbidden', 'You are not authorized to scan tickets for this event', 403);
+        }
       }
 
       // 4. Check status constraints & Expiration
@@ -137,7 +151,17 @@ export const scannerController = {
       }
 
       if (event.organizer_id !== req.user.id && req.user.role !== 'admin') {
-        return error(res, 'Forbidden', 'You do not own this event', 403);
+        // Check if they are gate staff for this event
+        const { data: staffData } = await supabase
+          .from('event_staff')
+          .select('id')
+          .eq('event_id', eventId)
+          .eq('user_id', req.user.id)
+          .single();
+
+        if (!staffData) {
+          return error(res, 'Forbidden', 'You are not authorized to view stats for this event', 403);
+        }
       }
 
       // Query ticket details joining tiers
