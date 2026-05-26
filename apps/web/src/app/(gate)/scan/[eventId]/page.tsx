@@ -13,7 +13,7 @@ interface ScanStats {
   totalActive: number; totalCancelled: number; scanRate: number;
 }
 interface ScanResponse {
-  status: 'VALID' | 'ALREADY_USED' | 'CANCELLED' | 'INVALID';
+  status: 'VALID' | 'ALREADY_USED' | 'CANCELLED' | 'INVALID' | 'EXPIRED';
   is_re_entry?: boolean;
   holder_name?: string; tier_name?: string; event_title?: string; message?: string;
 }
@@ -74,6 +74,8 @@ export default function GateScannerPage() {
           toast({ title, description: `${payload.holder_name} — ${payload.tier_name}`, variant: 'success' });
         } else if (payload.status === 'ALREADY_USED') {
           toast({ title: '⚠️ Already Scanned', description: 'Duplicate entry attempt detected', variant: 'destructive' });
+        } else if (payload.status === 'EXPIRED') {
+          toast({ title: '⏳ Event Ended', description: payload.message || 'This event has officially ended', variant: 'destructive' });
         } else {
           toast({ title: '❌ Fake / Invalid QR', description: payload.message || 'Cryptographic signature mismatch — deny entry', variant: 'destructive' });
         }
@@ -248,12 +250,12 @@ export default function GateScannerPage() {
                         </div>
                       </div>
                     )}
-                    {(scanResult.status === 'CANCELLED' || scanResult.status === 'INVALID') && (
+                    {(scanResult.status === 'CANCELLED' || scanResult.status === 'INVALID' || scanResult.status === 'EXPIRED') && (
                       <div className="p-5 rounded-2xl bg-red-950/25 border border-red-700/30 flex items-start gap-3">
                         <ShieldAlert className="h-6 w-6 text-red-400 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm font-black text-red-400 uppercase tracking-widest">
-                            {scanResult.status === 'CANCELLED' ? 'Ticket Cancelled' : 'Access Denied — Invalid QR'}
+                            {scanResult.status === 'CANCELLED' ? 'Ticket Cancelled' : scanResult.status === 'EXPIRED' ? 'Event Expired' : 'Access Denied — Invalid QR'}
                           </p>
                           <p className="text-xs text-red-300/70 mt-1">{scanResult.message || 'This ticket is invalid or tampered. Deny entrance.'}</p>
                         </div>
