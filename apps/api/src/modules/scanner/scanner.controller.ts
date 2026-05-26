@@ -55,8 +55,13 @@ export const scannerController = {
         });
       }
 
+      // Extract the event object whether it's returned as an array or a single object
+      const eventObj = Array.isArray(ticket.ticket_tiers.events) 
+        ? ticket.ticket_tiers.events[0] 
+        : ticket.ticket_tiers.events;
+
       // 3. Authorization Check: Ensure active staff/organizer belongs to this event or is admin
-      if (req.user?.role !== 'admin' && ticket.ticket_tiers.events.organizer_id !== req.user?.id) {
+      if (req.user?.role !== 'admin' && eventObj?.organizer_id !== req.user?.id) {
         if (!req.user?.id) {
           return error(res, 'Forbidden', 'User ID missing', 403);
         }
@@ -65,7 +70,7 @@ export const scannerController = {
         const { data: staffData } = await supabase
           .from('event_staff')
           .select('id')
-          .eq('event_id', ticket.ticket_tiers.events.id ?? ticket.ticket_tiers.event_id)
+          .eq('event_id', eventObj?.id ?? ticket.ticket_tiers.event_id)
           .eq('user_id', req.user.id)
           .single();
 
@@ -75,7 +80,7 @@ export const scannerController = {
       }
 
       // 4. Check status constraints & Expiration
-      const eventEndDate = new Date(ticket.ticket_tiers.events.end_date);
+      const eventEndDate = new Date(eventObj?.end_date);
       if (new Date() > eventEndDate) {
         return res.status(200).json({
           success: true,
@@ -98,6 +103,16 @@ export const scannerController = {
         });
       }
 
+      if (isReEntry) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            status: 'ALREADY_USED',
+            holder_name: ticket.holder_name
+          }
+        });
+      }
+
       // 5. Update status to Used and record timestamp
       const nowStr = new Date().toISOString();
       const { error: updateError } = await supabase
@@ -112,6 +127,10 @@ export const scannerController = {
         return error(res, 'Database error', 'Failed to check in ticket status', 500);
       }
 
+      const eventObjForResponse = Array.isArray(ticket.ticket_tiers.events) 
+        ? ticket.ticket_tiers.events[0] 
+        : ticket.ticket_tiers.events;
+
       return res.status(200).json({
         success: true,
         data: {
@@ -119,7 +138,7 @@ export const scannerController = {
           is_re_entry: isReEntry,
           holder_name: ticket.holder_name,
           tier_name: ticket.ticket_tiers.name,
-          event_title: ticket.ticket_tiers.events.title
+          event_title: eventObjForResponse?.title
         }
       });
 

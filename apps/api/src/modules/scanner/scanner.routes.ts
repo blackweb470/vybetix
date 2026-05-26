@@ -6,11 +6,11 @@ import { scanLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
-// Restrict QR scanning to organizers and administrators. Incorporates rate-limiting protection.
-router.post('/scan/:qrToken', authMiddleware, requireRole(['organizer', 'admin']), scanLimiter, scannerController.scanTicket);
+// Restrict QR scanning to organizers, administrators, and gate staff. Incorporates rate-limiting protection.
+router.post('/scan/:qrToken', authMiddleware, requireRole(['organizer', 'admin', 'gate_staff']), scanLimiter, scannerController.scanTicket);
 
 // Fetch scans breakdown metrics
-router.get('/stats/:eventId', authMiddleware, requireRole(['organizer', 'admin']), scannerController.getEventScanStats);
+router.get('/stats/:eventId', authMiddleware, requireRole(['organizer', 'admin', 'gate_staff']), scannerController.getEventScanStats);
 
 export default router;
 
