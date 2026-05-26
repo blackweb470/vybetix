@@ -767,6 +767,9 @@ export const eventsController = {
         return error(res, 'Unauthorized', 'Session required', 401);
       }
 
+      let assignedEvents: any[] = [];
+
+      // 1. Get events they are staff for
       const { data: assignments, error: queryError } = await supabase
         .from('event_staff')
         .select('event_id, events(id, title, slug, cover_image_url, event_date, venue, city)')
@@ -777,7 +780,27 @@ export const eventsController = {
       }
 
       // Supabase join returns an array of objects where 'events' is the joined data
-      const assignedEvents = assignments.map(a => a.events).filter(e => e !== null);
+      const staffEvents = assignments.map(a => Array.isArray(a.events) ? a.events[0] : a.events).filter(e => e !== null);
+      assignedEvents = [...staffEvents];
+
+      // 2. If they are an organizer, also fetch events they own
+      if (req.user.role === 'organizer' || req.user.role === 'admin') {
+        const { data: ownedEvents, error: ownedError } = await supabase
+          .from('events')
+          .select('id, title, slug, cover_image_url, event_date, venue, city')
+          .eq('organizer_id', req.user.id)
+          .gte('end_date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()); // Only fetch events that ended recently or are upcoming
+          
+        if (!ownedError && ownedEvents) {
+          // Add owned events that aren't already in the list
+          const existingIds = new Set(assignedEvents.map(e => e.id));
+          for (const ev of ownedEvents) {
+            if (!existingIds.has(ev.id)) {
+              assignedEvents.push(ev);
+            }
+          }
+        }
+      }
       
       return success(res, assignedEvents, 'Assigned events retrieved successfully');
     } catch (err: any) {

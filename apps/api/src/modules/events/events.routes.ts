@@ -22,7 +22,7 @@ const upload = multer({
 });
 
 router.get('/universities', eventsController.getUniversities);
-router.get('/staff/assigned', authMiddleware, requireRole(['gate_staff', 'admin']), eventsController.getAssignedEvents);
+router.get('/staff/assigned', authMiddleware, requireRole(['gate_staff', 'organizer', 'admin']), eventsController.getAssignedEvents);
 router.get('/', eventsController.list);
 
 // Organizer and Admin operations — must be before /:id to avoid route conflicts
