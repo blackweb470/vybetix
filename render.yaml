@@ -9,7 +9,7 @@ services:
     name: vybetix-api
     env: node
     region: oregon
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: node apps/api/dist/index.js
     healthCheckPath: /
@@ -30,7 +30,7 @@ services:
     name: vybetix-web
     env: node
     region: oregon
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm run start --workspace=apps/web
     envVars:
