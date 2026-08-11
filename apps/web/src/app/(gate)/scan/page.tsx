@@ -7,6 +7,8 @@ import { useToast } from '../../../components/ui/toast';
 import { QrCode, Disc, MapPin, Calendar, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 
+import { useAuth } from '../../../hooks/useAuth';
+
 interface AssignedEvent {
   id: string;
   title: string;
@@ -18,11 +20,17 @@ interface AssignedEvent {
 }
 
 export default function StaffScanPortal() {
+  const { user } = useAuth();
   const [events, setEvents] = useState<AssignedEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
+    if (user && user.role !== 'organizer' && user.role !== 'admin' && user.role !== 'gate_staff') {
+      setIsLoading(false);
+      return;
+    }
+
     const fetchAssignedEvents = async () => {
       try {
         const response = await api.get('/api/events/staff/assigned');
@@ -35,7 +43,7 @@ export default function StaffScanPortal() {
     };
 
     fetchAssignedEvents();
-  }, [toast]);
+  }, [user, toast]);
 
   if (isLoading) {
     return (

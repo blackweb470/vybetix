@@ -333,105 +333,103 @@ export default function EventsListingPage() {
               </div>
             ))}
           </div>
+        ) : !events || events.length === 0 ? (
+          <div className="w-full text-center py-24 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/20">
+            <MapPin className="h-10 w-10 text-zinc-700 mx-auto mb-4" />
+            <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-2">No Events Found</h3>
+            <p className="text-xs text-zinc-650">
+              {isFiltering ? 'Try clearing your filters or search query.' : 'There are no active events available right now. Check back soon!'}
+            </p>
+          </div>
         ) : isFiltering ? (
           
           /* VIEW 1: FILTERED RESULTS LIST (Traditional Grid Layout) */
           <div>
-            {events && events.length > 0 ? (
-              <div>
-                <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900/60">
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                    Showing <span className="text-white">{events.length}</span> matches found
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {events.map((event) => {
-                    const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600';
-                    const activeTiers = event.ticket_tiers || event.tiers || [];
-                    const hasFreeTier = activeTiers.some((t: any) => t.price === 0);
-                    const hasPaidTier = activeTiers.some((t: any) => t.price > 0);
-                    const startingPrice = hasPaidTier
-                      ? Math.min(...activeTiers.filter((t: any) => t.price > 0).map((t: any) => t.price))
-                      : 0;
-                    const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
-                    const isEnded = event.is_ended ||
-                      (event.end_date ? new Date(event.end_date) < new Date() : false);
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900/60">
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                Showing <span className="text-white">{events.length}</span> matches found
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {events.map((event) => {
+                const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600';
+                const activeTiers = event.ticket_tiers || event.tiers || [];
+                const hasFreeTier = activeTiers.some((t: any) => t.price === 0);
+                const hasPaidTier = activeTiers.some((t: any) => t.price > 0);
+                const startingPrice = hasPaidTier
+                  ? Math.min(...activeTiers.filter((t: any) => t.price > 0).map((t: any) => t.price))
+                  : 0;
+                const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
+                const isEnded = event.is_ended ||
+                  (event.end_date ? new Date(event.end_date) < new Date() : false);
 
-                    return (
-                      <Link key={event.id} href={`/events/${event.slug}`} className="group block">
-                        <div className={`rounded-2xl border overflow-hidden transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-[0_12px_40px_rgba(0,0,0,0.6)] ${
-                          isEnded ? 'border-zinc-800/50 bg-zinc-950/20 opacity-80' : 'border-zinc-900/80 bg-zinc-950/30 group-hover:border-zinc-800'
-                        }`}>
-                          <div className="relative h-44 w-full overflow-hidden">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={coverImage}
-                              alt={event.title}
-                              className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${isEnded ? 'grayscale-[30%]' : ''}`}
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#08080C]/90 via-transparent to-transparent" />
-                            <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-10">
-                              <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${gradient}`}>
-                                {getCategoryLabel(event.category, event.custom_category)}
+                return (
+                  <Link key={event.id} href={`/events/${event.slug}`} className="group block">
+                    <div className={`rounded-2xl border overflow-hidden transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-[0_12px_40px_rgba(0,0,0,0.6)] ${
+                      isEnded ? 'border-zinc-800/50 bg-zinc-950/20 opacity-80' : 'border-zinc-900/80 bg-zinc-950/30 group-hover:border-zinc-800'
+                    }`}>
+                      <div className="relative h-44 w-full overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={coverImage}
+                          alt={event.title}
+                          className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${isEnded ? 'grayscale-[30%]' : ''}`}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#08080C]/90 via-transparent to-transparent" />
+                        <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-10">
+                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${gradient}`}>
+                            {getCategoryLabel(event.category, event.custom_category)}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {isEnded && (
+                              <span className="px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest text-white uppercase bg-amber-700/90 border border-amber-600/40 flex items-center gap-0.5">
+                                <BanIcon className="h-2.5 w-2.5" /> ENDED
                               </span>
-                              <div className="flex items-center gap-1">
-                                {isEnded && (
-                                  <span className="px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest text-white uppercase bg-amber-700/90 border border-amber-600/40 flex items-center gap-0.5">
-                                    <BanIcon className="h-2.5 w-2.5" /> ENDED
-                                  </span>
-                                )}
-                                {event.is_university_only && (
-                                  <span className="px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest text-white uppercase bg-purple-600/90 border border-purple-500/30">
-                                    CAMPUS
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="p-4 flex flex-col gap-2.5">
-                            <div className="flex items-center gap-1 text-[10px] font-black text-[#E8441A] uppercase tracking-widest">
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(event.event_date)}
-                            </div>
-                            <h3 className="text-sm font-black text-white font-syne uppercase tracking-tight line-clamp-2 leading-snug group-hover:text-[#E8441A] transition-colors">
-                              {event.title}
-                            </h3>
-                            <p className="text-[11px] text-zinc-500 flex items-center gap-1">
-                              <MapPin className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{event.venue}, {event.city}</span>
-                            </p>
-                          </div>
-                          <div className="px-4 pb-4 pt-2 border-t border-zinc-900/50 flex items-center justify-between">
-                            <div>
-                              <p className="text-[8px] font-black text-zinc-650 uppercase tracking-widest">From</p>
-                              <p className="text-sm font-extrabold text-white">
-                                {hasFreeTier && hasPaidTier ? 'Free & Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'Free')}
-                              </p>
-                            </div>
-                            {isEnded ? (
-                              <span className="flex items-center gap-1 text-[9px] font-black text-amber-600 uppercase tracking-widest">
-                                <BanIcon className="h-3 w-3" /> Sales Closed
+                            )}
+                            {event.is_university_only && (
+                              <span className="px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest text-white uppercase bg-purple-600/90 border border-purple-500/30">
+                                CAMPUS
                               </span>
-                            ) : (
-                              <div className="flex items-center gap-1 text-[10px] font-black text-[#E8441A] uppercase tracking-widest group-hover:gap-1.5 transition-all">
-                                <span>Tickets</span>
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              </div>
                             )}
                           </div>
                         </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="w-full text-center py-24 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/20">
-                <MapPin className="h-10 w-10 text-zinc-700 mx-auto mb-4" />
-                <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-2">No Events Found</h3>
-                <p className="text-xs text-zinc-650">Try clearing your filters or search query.</p>
-              </div>
-            )}
+                      </div>
+                      <div className="p-4 flex flex-col gap-2.5">
+                        <div className="flex items-center gap-1 text-[10px] font-black text-[#E8441A] uppercase tracking-widest">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(event.event_date)}
+                        </div>
+                        <h3 className="text-sm font-black text-white font-syne uppercase tracking-tight line-clamp-2 leading-snug group-hover:text-[#E8441A] transition-colors">
+                          {event.title}
+                        </h3>
+                        <p className="text-[11px] text-zinc-500 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{event.venue}, {event.city}</span>
+                        </p>
+                      </div>
+                      <div className="px-4 pb-4 pt-2 border-t border-zinc-900/50 flex items-center justify-between">
+                        <div>
+                          <p className="text-[8px] font-black text-zinc-650 uppercase tracking-widest">From</p>
+                          <p className="text-sm font-extrabold text-white">
+                            {hasFreeTier && hasPaidTier ? 'Free & Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'Free')}
+                          </p>
+                        </div>
+                        {isEnded ? (
+                          <span className="flex items-center gap-1 text-[9px] font-black text-amber-600 uppercase tracking-widest">
+                            <BanIcon className="h-3 w-3" /> Sales Closed
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1 text-[10px] font-black text-[#E8441A] uppercase tracking-widest group-hover:gap-1.5 transition-all">
+                            <span>Tickets</span>
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         ) : (
 
