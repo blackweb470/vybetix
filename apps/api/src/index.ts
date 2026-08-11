@@ -91,8 +91,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Boot listening socket
-app.listen(PORT, () => {
-  console.log(`⚡️[server]: Vybetix API is listening at http://localhost:${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`⚡️[server]: Vybetix API is listening on port ${PORT}`);
   initCronJobs();
 });
 export default app;
