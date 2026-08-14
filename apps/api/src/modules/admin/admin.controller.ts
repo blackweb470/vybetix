@@ -172,6 +172,40 @@ export const adminController = {
       console.error('Resolve fraud flag error:', err);
       return error(res, 'Server error resolving audit flag', err.message, 500);
     }
+  },
+
+  /**
+   * Approves and processes an organizer's pending payout request.
+   */
+  processPayout: async (req: AuthRequest, res: Response) => {
+    try {
+      const { payoutId, status } = req.body;
+      if (!payoutId) {
+        return error(res, 'Validation error', 'payoutId is required', 400);
+      }
+
+      const newStatus = status || 'paid';
+
+      const { data: payout, error: updateErr } = await supabase
+        .from('payouts')
+        .update({
+          status: newStatus,
+          paid_at: new Date().toISOString()
+        })
+        .eq('id', payoutId)
+        .select('*, organizer:users(full_name, email)')
+        .single();
+
+      if (updateErr) {
+        return error(res, 'Payout processing failed', updateErr.message, 400);
+      }
+
+      return success(res, payout, `Payout request approved and status set to ${newStatus}`);
+    } catch (err: any) {
+      console.error('Process payout error:', err);
+      return error(res, 'Server error processing payout', err.message, 500);
+    }
   }
 };
+
 

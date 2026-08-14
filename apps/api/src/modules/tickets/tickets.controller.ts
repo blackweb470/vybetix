@@ -150,12 +150,13 @@ export const ticketsController = {
 
       const organizerProfile = orgProfileRes.data;
 
-      // Calculate platform charges: 500 Naira flat fee + 2% organizer charge on ticket sale
+      // Calculate platform fee: 500 Naira flat fee + 2% organizer commission on ticket sale
       const platformFlatFeeKobo = 50000;
       const organizerPercentChargeKobo = Math.round(baseAmount * 0.02);
       const totalTransactionChargeKobo = platformFlatFeeKobo + organizerPercentChargeKobo;
 
-      // 8. Initialize Paystack transaction with full metadata
+      // 7. Initialize Paystack transaction with split payload
+      // Platform gets totalTransactionChargeKobo; Organizer gets the remaining share directly to subaccount
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
@@ -169,7 +170,7 @@ export const ticketsController = {
           callback_url: callbackUrl,
           ...(organizerProfile?.paystack_subaccount_code ? {
             subaccount: organizerProfile.paystack_subaccount_code,
-            transaction_charge: totalTransactionChargeKobo // Platform takes 500 Naira flat fee + 2% organizer charge
+            transaction_charge: totalTransactionChargeKobo
           } : {}),
           metadata: {
             order_id: order.id,

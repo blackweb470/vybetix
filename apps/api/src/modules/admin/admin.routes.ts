@@ -10,6 +10,7 @@ router.get('/stats', authMiddleware, requireRole(['admin']), adminController.get
 router.post('/ban', authMiddleware, requireRole(['admin']), adminController.banUser);
 router.get('/fraud', authMiddleware, requireRole(['admin']), adminController.getFraudFlags);
 router.post('/resolve-flag', authMiddleware, requireRole(['admin']), adminController.resolveFlag);
+router.post('/payouts/process', authMiddleware, requireRole(['admin']), adminController.processPayout);
 
 export default router;
 
