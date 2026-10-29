@@ -220,9 +220,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
                     <span className="text-sm font-extrabold text-[#E8441A]">{formatNaira(tier.price)}</span>
                     {isSoldOut ? (
                       <Badge variant="danger">SOLD OUT</Badge>
-                    ) : (
-                      <span className="text-xxs text-zinc-500 font-semibold">{tier.quantity - soldCount} left</span>
-                    )}
+                    ) : null}
                   </div>
                 </button>
               );

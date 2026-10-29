@@ -6,6 +6,7 @@ import { generateQRToken, generateQRImage } from '../../utils/qrcode';
 import { sendTicketConfirmationEmail } from '../../utils/mailer';
 import { sendTicketWhatsAppNotification } from '../../utils/whatsapp';
 import crypto from 'crypto';
+import { cache } from '../../utils/cache';
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || 'sk_test_mock_secret_key_12345';
 
@@ -118,6 +119,7 @@ export async function fulfillOrder(orderId: string, tierId: string, attendees: {
       }
     })().catch(err => console.error("[Fulfillment Warning] Background notification loop failed:", err));
 
+    cache.delPrefix('events:');
     console.log(`[Order Fulfill] Success! Fulfilling completed for Order #${orderId}`);
   } catch (err: any) {
     console.error('Fulfillment execution failure:', err);

@@ -235,24 +235,7 @@ export default function EventDetailPage() {
                             </span>
                           </div>
                         </div>
-                        {/* Sold progress bar + remaining */}
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1 bg-zinc-900 rounded-full overflow-hidden">
-                            <div className="h-full bg-[#E8441A]/60 rounded-full" style={{ width: `${pctSold}%` }} />
-                          </div>
-                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest whitespace-nowrap">
-                            {soldCount}/{tier.quantity} sold
-                          </span>
-                        </div>
-                        {/* Remaining tickets */}
-                        {!isSoldOut && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] font-black uppercase tracking-widest text-zinc-400">
-                              <span className="text-emerald-400 font-black">{remaining}</span>
-                              {remaining === 1 ? 'ticket left' : 'tickets left'}
-                            </span>
-                          </div>
-                        )}
+
                       </div>
                     );
                   })}

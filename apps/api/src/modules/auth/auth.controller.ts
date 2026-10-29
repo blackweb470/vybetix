@@ -1,7 +1,15 @@
 import { Request, Response } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
-import { AuthRequest } from '../../middleware/auth';
+import { AuthRequest, clearUserCache } from '../../middleware/auth';
+
+// --- /api/auth/me Response Cache ---
+// Caches full user+organizerProfile so page reloads don't hit Supabase every time.
+// TTL: 10 minutes. Evicted on profile update or ban.
+interface CachedMeRecord { data: any; cachedAt: number; }
+const ME_CACHE = new Map<string, CachedMeRecord>();
+const ME_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+export function clearMeCache(userId: string) { ME_CACHE.delete(userId); }
 import { z } from 'zod';
 import { paystackClient } from '../../config/paystack';
 
@@ -282,6 +290,7 @@ export const authController = {
 
   /**
    * Retrieves profile details of the current authenticated user session.
+   * Response is cached for 10 minutes to avoid repeated DB hits on page reloads.
    */
   getCurrentUser: async (req: AuthRequest, res: Response) => {
     try {
@@ -289,7 +298,13 @@ export const authController = {
         return error(res, 'Unauthorized', 'User context not found', 401);
       }
 
-      // Fetch user and organize profile details if organizer
+      const now = Date.now();
+      const cached = ME_CACHE.get(req.user.id);
+      if (cached && now - cached.cachedAt < ME_CACHE_TTL_MS) {
+        return success(res, cached.data, 'Current user retrieved successfully');
+      }
+
+      // Cache MISS — fetch from Supabase
       const { data: dbUser, error: dbError } = await supabase
         .from('users')
         .select('*')
@@ -310,10 +325,9 @@ export const authController = {
         organizerProfile = profile;
       }
 
-      return success(res, {
-        ...dbUser,
-        organizerProfile
-      }, 'Current user retrieved successfully');
+      const responseData = { ...dbUser, organizerProfile };
+      ME_CACHE.set(req.user.id, { data: responseData, cachedAt: now });
+      return success(res, responseData, 'Current user retrieved successfully');
     } catch (err: any) {
       console.error('Get profile error:', err);
       return error(res, 'Profile error', err.message, 500);
@@ -428,6 +442,9 @@ export const authController = {
         }
       }
 
+      // Evict cached profile so next /me call fetches fresh data
+      clearMeCache(req.user.id);
+      clearUserCache(req.user.id);
       return success(res, {
         ...dbUser,
         organizerProfile

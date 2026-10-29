@@ -4,6 +4,7 @@ import { success, error } from '../../utils/response';
 import { AuthRequest } from '../../middleware/auth';
 import { z } from 'zod';
 import sharp from 'sharp';
+import { cache } from '../../utils/cache';
 
 // 1. Zod Validation Schemas
 export const createEventSchema = z.object({
@@ -56,6 +57,12 @@ export const eventsController = {
    */
   getUniversities: async (req: Request, res: Response) => {
     try {
+      const cacheKey = 'universities:all';
+      const cached = cache.get<any[]>(cacheKey);
+      if (cached) {
+        return success(res, cached, 'Universities retrieved successfully (cached)');
+      }
+
       const { data: universitiesList, error: queryError } = await supabase
         .from('universities')
         .select('*')
@@ -65,6 +72,7 @@ export const eventsController = {
         return error(res, 'Failed to fetch universities', queryError.message, 400);
       }
 
+      cache.set(cacheKey, universitiesList, 1800); // 30 mins TTL
       return success(res, universitiesList, 'Universities retrieved successfully');
     } catch (err: any) {
       console.error('List universities error:', err);
@@ -78,6 +86,11 @@ export const eventsController = {
   list: async (req: Request, res: Response) => {
     try {
       const { category, city, universityId, isUniversityOnly, search, limit, page } = req.query;
+      const cacheKey = `events:list:${JSON.stringify(req.query)}`;
+      const cached = cache.get<any[]>(cacheKey);
+      if (cached) {
+        return success(res, cached, 'Events retrieved successfully (cached)');
+      }
       const now = new Date().toISOString();
 
       // Pagination defaults
@@ -155,6 +168,7 @@ export const eventsController = {
         }))
       }));
 
+      cache.set(cacheKey, eventsWithRealCounts, 120); // 2 minutes TTL
       return success(res, eventsWithRealCounts, 'Events retrieved successfully');
     } catch (err: any) {
       console.error('List events error:', err);
@@ -168,6 +182,11 @@ export const eventsController = {
   getById: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const cacheKey = `events:detail:${id.toLowerCase()}`;
+      const cached = cache.get<any>(cacheKey);
+      if (cached) {
+        return success(res, cached, 'Event details retrieved successfully (cached)');
+      }
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       const queryField = isUuid ? 'id' : 'slug';
 
@@ -218,7 +237,11 @@ export const eventsController = {
       // Attach is_ended flag so the frontend can block ticket purchasing
       const isEnded = event.end_date ? new Date(event.end_date) < new Date() : false;
 
-      return success(res, { ...event, is_ended: isEnded, ticket_tiers: tiersWithRealCounts, tiers: tiersWithRealCounts }, 'Event details retrieved successfully');
+      const resultPayload = { ...event, is_ended: isEnded, ticket_tiers: tiersWithRealCounts, tiers: tiersWithRealCounts };
+      cache.set(cacheKey, resultPayload, 180); // 3 minutes TTL
+      if (event.slug) cache.set(`events:detail:${event.slug.toLowerCase()}`, resultPayload, 180);
+      if (event.id) cache.set(`events:detail:${event.id.toLowerCase()}`, resultPayload, 180);
+      return success(res, resultPayload, 'Event details retrieved successfully');
     } catch (err: any) {
       console.error('Get event error:', err);
       return error(res, 'Server error getting event', err.message, 500);
@@ -316,6 +339,7 @@ export const eventsController = {
           return error(res, 'Ticket tiers creation failed', tiersError.message, 400);
         }
 
+        cache.delPrefix('events:');
         return success(res, { ...event, ticket_tiers: createdTiers, tiers: createdTiers }, 'Event and ticket tiers created successfully', 201);
       }
 

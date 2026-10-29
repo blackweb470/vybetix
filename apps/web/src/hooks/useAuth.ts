@@ -111,7 +111,9 @@ export function useMe() {
       const res = await api.get('/api/auth/me');
       return res.data.data as UserProfile & { organizerProfile?: any };
     },
-    enabled: !!token
+    enabled: !!token,
+    staleTime: 1000 * 60 * 10, // 10 minutes cache buffer
+    gcTime: 1000 * 60 * 15
   });
 }
 
