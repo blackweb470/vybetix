@@ -63,7 +63,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
   const activeTier = availableTiers.find((t) => t.id === selectedTierId);
   const baseAmountKobo = activeTier ? activeTier.price * quantity : 0;
-  const platformFeeKobo = baseAmountKobo > 0 ? 20000 : 0; // 200 Naira (20000 kobo) flat service fee for paid transactions
+  const platformFeeKobo = baseAmountKobo > 0 ? 10000 : 0; // 100 Naira (10000 kobo) flat service fee for paid transactions
   const totalAmountKobo = baseAmountKobo + platformFeeKobo;
 
   const handleCheckout = async (e: React.FormEvent) => {

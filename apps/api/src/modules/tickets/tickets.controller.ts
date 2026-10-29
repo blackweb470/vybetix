@@ -83,7 +83,7 @@ export const ticketsController = {
 
       // 3. Calculate total amount in kobo
       const baseAmount = tier.price * parsedData.quantity;
-      const totalAmount = baseAmount > 0 ? baseAmount + 20000 : 0; // Add 200 Naira service charge for Paystack
+      const totalAmount = baseAmount > 0 ? baseAmount + 10000 : 0; // Add 100 Naira service charge for Paystack
 
       // 4. Parallelize secondary validation checks
       const [ticketsCountRes, uniRes, orgProfileRes] = await Promise.all([
@@ -150,8 +150,8 @@ export const ticketsController = {
 
       const organizerProfile = orgProfileRes.data;
 
-      // Calculate platform fee: 200 Naira flat service fee + 4% organizer commission on ticket sale
-      const platformFlatFeeKobo = 20000;
+      // Calculate platform fee: 100 Naira flat service fee + 4% organizer commission on ticket sale
+      const platformFlatFeeKobo = 10000;
       const organizerPercentChargeKobo = Math.round(baseAmount * 0.04);
       const totalTransactionChargeKobo = platformFlatFeeKobo + organizerPercentChargeKobo;
 
