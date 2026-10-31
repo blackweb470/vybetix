@@ -48,7 +48,12 @@ app.use(cors({
 app.use(morgan('dev'));
 
 // JSON Body parser
-app.use(express.json());
+// JSON Body parser with rawBody preservation for payment webhooks (Paystack HMAC)
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
 // ---------------------- Routes Register ----------------------
 app.use('/api/auth', authRoutes);

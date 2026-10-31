@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { AuthRequest } from '../../middleware/auth';
-// paystackClient kept for future verifyTransaction usage if needed
+import { paystackClient } from '../../config/paystack';
 import { verifyQRToken, generateQRToken } from '../../utils/qrcode';
 import { fulfillOrder } from '../payments/payments.controller';
 import crypto from 'crypto';
@@ -117,7 +117,7 @@ export const ticketsController = {
 
       // 5. Generate unique Paystack reference
       const reference = `TIX-${crypto.randomUUID()}`;
-      const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/orders/verify`;
+      const callbackUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://vybetix.com' : 'http://localhost:3000')}/dashboard/orders/verify`;
 
       // 6. Create pending order in DB first
       const { data: order, error: orderError } = await supabase
@@ -216,6 +216,61 @@ export const ticketsController = {
       }
 
       const deviceFingerprint = req.headers['x-device-fingerprint'] as string;
+
+      // Step 0: Auto-reconcile recent pending orders for this user in case webhook dropped or browser closed early
+      try {
+        const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const { data: pendingOrders } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('buyer_id', req.user.id)
+          .eq('paystack_status', 'pending')
+          .gt('created_at', fortyEightHoursAgo);
+
+        if (pendingOrders && pendingOrders.length > 0) {
+          for (const pendingOrder of pendingOrders) {
+            try {
+              const paystackData = await paystackClient.verifyTransaction(pendingOrder.paystack_reference);
+              if (paystackData.status === 'success') {
+                await supabase
+                  .from('orders')
+                  .update({ paystack_status: 'success' })
+                  .eq('id', pendingOrder.id);
+
+                let parsedMetadata = paystackData.metadata;
+                if (typeof parsedMetadata === 'string') {
+                  try { parsedMetadata = JSON.parse(parsedMetadata); } catch (_) {}
+                }
+
+                if (parsedMetadata && parsedMetadata.tier_id) {
+                  let attendees = [];
+                  if (parsedMetadata.attendees) {
+                    attendees = typeof parsedMetadata.attendees === 'string'
+                      ? JSON.parse(parsedMetadata.attendees)
+                      : parsedMetadata.attendees;
+                  } else if (parsedMetadata.holder_name) {
+                    for (let i = 0; i < Number(parsedMetadata.quantity || 1); i++) {
+                      attendees.push({
+                        name: parsedMetadata.holder_name,
+                        email: parsedMetadata.holder_email,
+                        phone: parsedMetadata.holder_phone
+                      });
+                    }
+                  }
+
+                  if (attendees.length > 0) {
+                    await fulfillOrder(pendingOrder.id, parsedMetadata.tier_id, attendees);
+                  }
+                }
+              }
+            } catch (pErr) {
+              // Non-blocking: transaction may still be pending or unpaid
+            }
+          }
+        }
+      } catch (reconErr) {
+        console.error('Pending orders auto-reconciliation error:', reconErr);
+      }
 
       // Step 1: Fetch the user's successful order IDs
       const { data: myOrders, error: ordersError } = await supabase

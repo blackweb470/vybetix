@@ -139,15 +139,23 @@ export const paymentsController = {
         return res.status(401).send('Missing Paystack signature header');
       }
 
-      // 1. Verify Signature
+      // 1. Verify Signature (Paystack signs with HMAC SHA512)
+      const rawBody = (req as any).rawBody || JSON.stringify(req.body);
       const expectedSignature = crypto
-        .createHmac('sha256', PAYSTACK_SECRET)
-        .update(JSON.stringify(req.body))
+        .createHmac('sha512', PAYSTACK_SECRET)
+        .update(rawBody)
         .digest('hex');
 
       if (signature !== expectedSignature) {
-        console.error('[Webhook Audit] Signature verification failed!');
-        return res.status(401).send('Invalid cryptographic signature');
+        const fallbackSignature = crypto
+          .createHmac('sha512', PAYSTACK_SECRET)
+          .update(JSON.stringify(req.body))
+          .digest('hex');
+
+        if (signature !== fallbackSignature) {
+          console.error('[Webhook Audit] Signature verification failed! Provided:', signature, 'Expected:', expectedSignature);
+          return res.status(401).send('Invalid cryptographic signature');
+        }
       }
 
       const payload = req.body;
