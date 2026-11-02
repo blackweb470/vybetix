@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { AuthRequest, clearUserCache } from '../../middleware/auth';
+import { z } from 'zod';
+import { paystackClient } from '../../config/paystack';
 
 // --- /api/auth/me Response Cache ---
 // Caches full user+organizerProfile so page reloads don't hit Supabase every time.
@@ -10,8 +12,56 @@ interface CachedMeRecord { data: any; cachedAt: number; }
 const ME_CACHE = new Map<string, CachedMeRecord>();
 const ME_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export function clearMeCache(userId: string) { ME_CACHE.delete(userId); }
-import { z } from 'zod';
-import { paystackClient } from '../../config/paystack';
+
+const COMMON_NIGERIAN_BANKS: Record<string, string> = {
+  'access': '044',
+  'access bank': '044',
+  'gtb': '058',
+  'gtbank': '058',
+  'guaranty trust': '058',
+  'guaranty trust bank': '058',
+  'zenith': '057',
+  'zenith bank': '057',
+  'first bank': '011',
+  'firstbank': '011',
+  'uba': '033',
+  'united bank for africa': '033',
+  'kuda': '50211',
+  'kuda bank': '50211',
+  'opay': '999992',
+  'palmpay': '999991',
+  'moniepoint': '50515',
+  'wema': '035',
+  'wema bank': '035',
+  'stanbic': '221',
+  'stanbic ibtc': '221',
+  'sterling': '232',
+  'sterling bank': '232',
+  'fidelity': '070',
+  'fidelity bank': '070',
+  'union': '032',
+  'union bank': '032',
+  'fcmb': '214',
+  'ecobank': '050'
+};
+
+export function resolveBankCode(bankInput?: string): { bankCode: string; bankName: string } {
+  if (!bankInput) return { bankCode: '', bankName: '' };
+  if (bankInput.includes(':')) {
+    const parts = bankInput.split(':');
+    return { bankCode: parts[0].trim(), bankName: parts.slice(1).join(':').trim() };
+  }
+  if (/^\d{3,6}$/.test(bankInput.trim())) {
+    return { bankCode: bankInput.trim(), bankName: bankInput.trim() };
+  }
+  const clean = bankInput.toLowerCase().replace(/plc|\./g, '').trim();
+  for (const [key, code] of Object.entries(COMMON_NIGERIAN_BANKS)) {
+    if (clean.includes(key)) {
+      return { bankCode: code, bankName: bankInput };
+    }
+  }
+  return { bankCode: '', bankName: bankInput };
+}
 
 // 1. Zod Validation Schemas
 export const registerSchema = z.object({
@@ -113,27 +163,22 @@ export const authController = {
 
       dbUser = updatedUser;
 
-      // If user registered as an organizer, initialize the organizer profile
+      // If user registered as an organizer, initialize the organizer profile & create Paystack subaccount
       if (parsedBody.role === 'organizer') {
-        let parsedBankCode = '';
-        let parsedBankName = parsedBody.bank_name || 'Access Bank PLC';
+        const { bankCode: parsedBankCode, bankName: parsedBankName } = resolveBankCode(parsedBody.bank_name);
 
-        if (parsedBody.bank_name && parsedBody.bank_name.includes(':')) {
-          const parts = parsedBody.bank_name.split(':');
-          parsedBankCode = parts[0];
-          parsedBankName = parts.slice(1).join(':');
-        }
-
-        // Create paystack subaccount if possible
+        // Automatically create paystack subaccount if bank details are supplied
         let subaccountCode = null;
-        if (parsedBody.business_name && parsedBankCode && parsedBody.account_number) {
+        const businessName = parsedBody.business_name || `${parsedBody.fullName} Events`;
+        if (businessName && parsedBankCode && parsedBody.account_number) {
           try {
             const subaccount = await paystackClient.createSubaccount(
-              parsedBody.business_name,
+              businessName,
               parsedBankCode,
               parsedBody.account_number
             );
             subaccountCode = subaccount.subaccount_code;
+            console.log(`[Register] Created Paystack subaccount ${subaccountCode} for organizer ${userId}`);
           } catch (paystackError) {
             console.error('Failed to create Paystack subaccount during register:', paystackError);
           }
@@ -143,12 +188,12 @@ export const authController = {
           .from('organizer_profiles')
           .insert({
             user_id: userId,
-            business_name: parsedBody.business_name || `${parsedBody.fullName} Events`,
-            bank_name: parsedBankName,
+            business_name: businessName,
+            bank_name: parsedBankName || 'Settlement Bank',
             account_number: parsedBody.account_number || '0000000000',
             account_name: parsedBody.account_name || parsedBody.fullName,
             paystack_subaccount_code: subaccountCode,
-            verified: false
+            verified: !!subaccountCode
           });
 
         if (profileError) {
@@ -360,7 +405,7 @@ export const authController = {
         return error(res, 'Profile update failed', dbError.message, 500);
       }
 
-      // If user is organizer, also update organizer_profiles
+      // If user is organizer, also update organizer_profiles and sync with Paystack subaccount
       let organizerProfile = null;
       if (dbUser.role === 'organizer') {
         // Fetch current profile to get existing paystack_subaccount_code safely
@@ -370,50 +415,50 @@ export const authController = {
           .eq('user_id', req.user.id)
           .maybeSingle();
 
-        let parsedBankCode = '';
-        let parsedBankName = bankName || '';
-
-        if (bankName && bankName.includes(':')) {
-          const parts = bankName.split(':');
-          parsedBankCode = parts[0];
-          parsedBankName = parts.slice(1).join(':');
-        }
+        const { bankCode: parsedBankCode, bankName: parsedBankName } = resolveBankCode(bankName || currentProfile?.bank_name);
+        const resolvedBizName = businessName || currentProfile?.business_name || fullName || 'Vybetix Organizer';
+        const resolvedAccNum = accountNumber || currentProfile?.account_number;
 
         let subaccountCode = currentProfile?.paystack_subaccount_code;
 
-        if (businessName && parsedBankCode && accountNumber) {
+        // Auto-create or update on Paystack if bank details exist
+        if (resolvedBizName && parsedBankCode && resolvedAccNum) {
           try {
             if (!subaccountCode) {
               const subaccount = await paystackClient.createSubaccount(
-                businessName,
+                resolvedBizName,
                 parsedBankCode,
-                accountNumber
+                resolvedAccNum
               );
               subaccountCode = subaccount.subaccount_code;
+              console.log(`[Profile Update] Created Paystack subaccount ${subaccountCode} for organizer ${req.user.id}`);
             } else {
               await paystackClient.updateSubaccount(
                 subaccountCode,
-                businessName,
+                resolvedBizName,
                 parsedBankCode,
-                accountNumber
+                resolvedAccNum,
+                4
               );
+              console.log(`[Profile Update] Updated Paystack subaccount ${subaccountCode}`);
             }
           } catch (paystackError: any) {
             console.error('Failed to sync Paystack subaccount:', paystackError);
-            return error(res, 'Bank verification failed', paystackError.message || 'Could not verify bank account with Paystack', 400);
+            // Don't completely fail profile update if Paystack has validation issue, but log it
           }
         }
 
         const profilePayload: any = {
           user_id: req.user.id,
-          business_name: businessName,
-          bank_name: parsedBankName,
-          account_number: accountNumber,
-          account_name: accountName
+          business_name: resolvedBizName,
+          bank_name: parsedBankName || 'Settlement Bank',
+          account_number: resolvedAccNum || '0000000000',
+          account_name: accountName || fullName
         };
 
         if (subaccountCode) {
           profilePayload.paystack_subaccount_code = subaccountCode;
+          profilePayload.verified = true;
         }
 
         let { data: profile, error: profileError } = await supabase
@@ -422,7 +467,6 @@ export const authController = {
           .select()
           .single();
 
-        // Fallback in case the paystack_subaccount_code column is not yet migrated in database
         if (profileError && (profileError.message?.includes('paystack_subaccount_code') || profileError.code === 'PGRST204')) {
           console.warn('[Profile Update] paystack_subaccount_code column missing in database. Retrying without it...');
           delete profilePayload.paystack_subaccount_code;
@@ -504,4 +548,3 @@ export const authController = {
     }
   }
 };
-

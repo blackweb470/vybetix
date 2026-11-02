@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { AuthRequest } from '../../middleware/auth';
-import { paystackClient } from '../../config/paystack';
+import { paystackClient, paystackConfig } from '../../config/paystack';
 import { verifyQRToken, generateQRToken } from '../../utils/qrcode';
 import { fulfillOrder } from '../payments/payments.controller';
 import crypto from 'crypto';
@@ -17,7 +17,7 @@ const staffAuthCache = new Map<string, { authorized: boolean, expiresAt: number 
 async function checkStaffAuthorization(userId: string, eventId: string): Promise<boolean> {
   const cacheKey = `${userId}:${eventId}`;
   const cached = staffAuthCache.get(cacheKey);
-  
+
   if (cached && cached.expiresAt > Date.now()) {
     return cached.authorized;
   }
@@ -32,7 +32,7 @@ async function checkStaffAuthorization(userId: string, eventId: string): Promise
   const isAuthorized = !!staffData;
   // Cache the result for 5 minutes (300000 ms)
   staffAuthCache.set(cacheKey, { authorized: isAuthorized, expiresAt: Date.now() + 300000 });
-  
+
   return isAuthorized;
 }
 
@@ -89,7 +89,7 @@ export const ticketsController = {
       const [ticketsCountRes, uniRes, orgProfileRes] = await Promise.all([
         supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('tier_id', parsedData.tierId),
         (event.is_university_only && event.university_id) ? supabase.from('universities').select('email_domain').eq('id', event.university_id).single() : Promise.resolve({ data: null }),
-        totalAmount > 0 ? supabase.from('organizer_profiles').select('paystack_subaccount_code').eq('user_id', event.organizer_id).maybeSingle() : Promise.resolve({ data: null })
+        totalAmount > 0 ? supabase.from('organizer_profiles').select('*').eq('user_id', event.organizer_id).maybeSingle() : Promise.resolve({ data: null })
       ]);
 
       const soldCount = ticketsCountRes.count || 0;
@@ -103,7 +103,7 @@ export const ticketsController = {
         const university = uniRes.data;
         if (university) {
           const emailDomain = university.email_domain.toLowerCase();
-          
+
           const invalidAttendee = parsedData.attendees.find(a => {
             const userEmail = a.email.toLowerCase();
             return !userEmail.endsWith(`@${emailDomain}`) && !userEmail.endsWith(`.${emailDomain}`);
@@ -148,7 +148,54 @@ export const ticketsController = {
         }, 'Free tickets claimed successfully!');
       }
 
-      const organizerProfile = orgProfileRes.data;
+      let organizerProfile = orgProfileRes.data;
+      let subaccountCode = organizerProfile?.paystack_subaccount_code;
+
+      // Auto-resolution: If subaccountCode is missing in DB, query Paystack directly to find and link the subaccount
+      if (!subaccountCode && totalAmount > 0) {
+        try {
+          const remoteSubaccounts = await paystackClient.listSubaccounts();
+          if (remoteSubaccounts && remoteSubaccounts.length > 0) {
+            // Match by account number, business name, prioritizing VERIFIED subaccounts
+            const matchingCandidates = remoteSubaccounts.filter(s =>
+              (organizerProfile?.account_number && s.account_number === organizerProfile.account_number) ||
+              (organizerProfile?.business_name && s.business_name?.toLowerCase() === organizerProfile.business_name?.toLowerCase())
+            );
+            matchingCandidates.sort((a, b) => {
+              if (a.is_verified !== b.is_verified) return a.is_verified ? -1 : 1;
+              if (a.active !== b.active) return a.active ? -1 : 1;
+              return b.id - a.id;
+            });
+            const matched = matchingCandidates[0] || (remoteSubaccounts.length === 1 ? remoteSubaccounts[0] : null);
+
+            if (matched) {
+              subaccountCode = matched.subaccount_code;
+              console.log(`[Paystack Split Auto-Link] Found subaccount ${subaccountCode} on Paystack, syncing to organizer ${event.organizer_id}`);
+
+              if (organizerProfile?.id) {
+                await supabase
+                  .from('organizer_profiles')
+                  .update({ paystack_subaccount_code: subaccountCode })
+                  .eq('id', organizerProfile.id);
+              } else {
+                await supabase
+                  .from('organizer_profiles')
+                  .upsert({
+                    user_id: event.organizer_id,
+                    business_name: matched.business_name || 'Event Organizer',
+                    bank_name: matched.settlement_bank || 'Settlement Bank',
+                    account_number: matched.account_number || '0000000000',
+                    account_name: matched.business_name || 'Organizer',
+                    paystack_subaccount_code: subaccountCode,
+                    verified: true
+                  }, { onConflict: 'user_id' });
+              }
+            }
+          }
+        } catch (linkErr: any) {
+          console.warn('[Paystack Split Auto-Link] Could not auto-query subaccounts from Paystack:', linkErr.message);
+        }
+      }
 
       // Calculate platform fee: 100 Naira flat service fee + 4% organizer commission on ticket sale
       const platformFlatFeeKobo = 10000;
@@ -159,18 +206,16 @@ export const ticketsController = {
       // Platform gets totalTransactionChargeKobo; Organizer gets the remaining share directly to subaccount
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          'Content-Type': 'application/json'
-        },
+        headers: paystackConfig.headers,
         body: JSON.stringify({
           email: req.user.email, // Use buyer's email for the Paystack receipt
           amount: totalAmount,
           reference: reference,
           callback_url: callbackUrl,
-          ...(organizerProfile?.paystack_subaccount_code ? {
-            subaccount: organizerProfile.paystack_subaccount_code,
-            transaction_charge: totalTransactionChargeKobo
+          ...(subaccountCode ? {
+            subaccount: subaccountCode,
+            transaction_charge: totalTransactionChargeKobo,
+            bearer: 'account' // Platform explicitly bears all Paystack processing fees
           } : {}),
           metadata: {
             order_id: order.id,
@@ -239,7 +284,7 @@ export const ticketsController = {
 
                 let parsedMetadata = paystackData.metadata;
                 if (typeof parsedMetadata === 'string') {
-                  try { parsedMetadata = JSON.parse(parsedMetadata); } catch (_) {}
+                  try { parsedMetadata = JSON.parse(parsedMetadata); } catch (_) { }
                 }
 
                 if (parsedMetadata && parsedMetadata.tier_id) {
@@ -296,7 +341,7 @@ export const ticketsController = {
             ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date))
           `)
           .in('order_id', myOrderIds);
-          // Removed .eq('status', 'active') so we get used/cancelled tickets too!
+        // Removed .eq('status', 'active') so we get used/cancelled tickets too!
 
         if (err) {
           console.error('Failed to fetch buyer tickets:', err);
@@ -315,7 +360,7 @@ export const ticketsController = {
           ticket_tiers(name, price, events(title, cover_image_url, venue, event_date, end_date))
         `)
         .ilike('holder_email', req.user.email);
-        // Removed .eq('status', 'active') here too
+      // Removed .eq('status', 'active') here too
       if (assignedError) {
         console.error('Failed to fetch assigned tickets:', assignedError);
         return error(res, 'Failed to fetch assigned tickets', assignedError.message, 400);
@@ -424,9 +469,9 @@ export const ticketsController = {
         if (!req.user?.id) {
           return error(res, 'Forbidden', 'User ID missing', 403);
         }
-        
+
         const isAuthorized = await checkStaffAuthorization(req.user.id, event.id);
-        
+
         if (!isAuthorized) {
           return error(res, 'Forbidden', 'You are not authorized to scan tickets for this event', 403);
         }
@@ -473,7 +518,7 @@ export const ticketsController = {
         }
 
         const isAuthorized = await checkStaffAuthorization(req.user.id, event.id);
-        
+
         if (!isAuthorized) {
           return error(res, 'Forbidden', 'You are not authorized to validate tickets for this event', 403);
         }
@@ -483,9 +528,9 @@ export const ticketsController = {
       const eventEndDate = new Date(event.end_date);
 
       if (now > eventEndDate) {
-        return success(res, { 
-          status: 'EXPIRED', 
-          message: 'The event for this ticket has already ended.' 
+        return success(res, {
+          status: 'EXPIRED',
+          message: 'The event for this ticket has already ended.'
         });
       }
 
@@ -542,7 +587,7 @@ export const ticketsController = {
 
       const eventIds = (myEvents || []).map((e: any) => e.id);
       if (eventIds.length === 0) {
-         return success(res, [], 'No events found');
+        return success(res, [], 'No events found');
       }
 
       // 2. Get all tiers for those events
@@ -552,13 +597,13 @@ export const ticketsController = {
         .in('event_id', eventIds);
 
       if (tiersError) {
-         console.error('Failed to fetch organizer tiers:', tiersError);
-         return error(res, 'Failed to fetch tiers', tiersError.message, 400);
+        console.error('Failed to fetch organizer tiers:', tiersError);
+        return error(res, 'Failed to fetch tiers', tiersError.message, 400);
       }
 
       const tierIds = (myTiers || []).map((t: any) => t.id);
       if (tierIds.length === 0) {
-         return success(res, [], 'No ticket tiers found');
+        return success(res, [], 'No ticket tiers found');
       }
 
       // 3. Get all tickets for those tiers
@@ -581,15 +626,15 @@ export const ticketsController = {
       const rawTickets = allTicketsRaw || [];
       let finalTickets: any[] = [];
       if (rawTickets.length > 0) {
-         const orderIds = [...new Set(rawTickets.map((t: any) => t.order_id))];
-         const { data: paidOrders } = await supabase
-           .from('orders')
-           .select('id')
-           .in('id', orderIds)
-           .eq('paystack_status', 'success');
-           
-         const paidSet = new Set((paidOrders || []).map((o: any) => o.id));
-         finalTickets = rawTickets.filter((t: any) => paidSet.has(t.order_id));
+        const orderIds = [...new Set(rawTickets.map((t: any) => t.order_id))];
+        const { data: paidOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .in('id', orderIds)
+          .eq('paystack_status', 'success');
+
+        const paidSet = new Set((paidOrders || []).map((o: any) => o.id));
+        finalTickets = rawTickets.filter((t: any) => paidSet.has(t.order_id));
       }
 
       return success(res, finalTickets, 'Organizer tickets fetched successfully');
@@ -706,7 +751,7 @@ export const ticketsController = {
       // Update the fingerprint, clear OTP, and increment unlock count
       const { error: updateError } = await supabase
         .from('tickets')
-        .update({ 
+        .update({
           device_fingerprint: newFingerprint,
           unlock_otp: null,
           unlock_otp_expires_at: null,

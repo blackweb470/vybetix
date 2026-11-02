@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { AuthRequest } from '../../middleware/auth';
+import { paystackClient } from '../../config/paystack';
 import { z } from 'zod';
 
 const banUserSchema = z.object({
@@ -17,7 +18,9 @@ const resolveFlagSchema = z.object({
 
 export const adminController = {
   /**
-   * Compiles global, high-level administrative platform-wide performance metrics.
+   * Compiles global, high-level administrative platform-wide performance metrics,
+   * including active vs non-active events, revenue generated vs not generated,
+   * and financial allocations (Organizer 96% vs Platform 4% Commission + ₦100 Service Fee).
    */
   getPlatformStats: async (req: AuthRequest, res: Response) => {
     try {
@@ -30,45 +33,216 @@ export const adminController = {
         return error(res, 'Admin stats failed', usersErr.message, 400);
       }
 
-      // 2. Count events and tickets
-      const { count: eventsCount } = await supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true });
-
-      // 3. Sum up platform revenue in kobo
+      // 2. Fetch successful orders first to map to events
       const { data: orders, error: ordersErr } = await supabase
         .from('orders')
-        .select('total_amount, paystack_status')
+        .select('id, event_id, total_amount, paystack_status')
         .eq('paystack_status', 'success');
 
       if (ordersErr) {
-        return error(res, 'Admin stats failed', ordersErr.message, 400);
+        return error(res, 'Admin stats failed fetching orders', ordersErr.message, 400);
       }
 
-      const totalRevenueKobo = orders.reduce((sum, o) => sum + o.total_amount, 0);
+      const eventOrdersMap = new Map<string, any[]>();
+      for (const o of (orders || [])) {
+        if (!eventOrdersMap.has(o.event_id)) {
+          eventOrdersMap.set(o.event_id, []);
+        }
+        eventOrdersMap.get(o.event_id)!.push(o);
+      }
 
-      // 4. Fetch pending payout requests needing manual approval
-      const { data: pendingPayouts } = await supabase
-        .from('payouts')
-        .select('*, organizer:users(full_name, email)')
-        .eq('status', 'pending');
+      // 3. Fetch all events with ticket tiers and organizer details
+      const { data: eventsList, error: eventsErr } = await supabase
+        .from('events')
+        .select(`
+          id,
+          title,
+          slug,
+          event_date,
+          end_date,
+          status,
+          venue,
+          city,
+          organizer_id,
+          created_at,
+          organizer:users(full_name, email),
+          ticket_tiers(id, name, price, quantity, sold)
+        `)
+        .order('created_at', { ascending: false });
 
-      // 5. Gather outstanding security fraud triggers
-      const { count: activeFraudFlags } = await supabase
-        .from('fraud_flags')
-        .select('*', { count: 'exact', head: true })
-        .eq('resolved', false);
+      if (eventsErr) {
+        console.error('Error fetching events in admin stats:', eventsErr);
+        return error(res, 'Admin stats failed fetching events', eventsErr.message, 400);
+      }
+
+      const now = new Date();
+      let totalActiveEvents = 0;
+      let totalInactiveEvents = 0;
+
+      // Financial allocation sums
+      let platformTotalGrossCollectedKobo = 0;
+      let platformTotalTicketSalesKobo = 0;
+      let platformTotalOrganizerAllocationsKobo = 0;
+      let platformTotal4PercentCommissionKobo = 0;
+      let platformTotalServiceFeesKobo = 0;
+      let platformTotalVybetixEarningsKobo = 0;
+
+      let totalNotGeneratedRevenueKobo = 0;
+      let activeGeneratedRevenueKobo = 0;
+      let activeNotGeneratedRevenueKobo = 0;
+      let inactiveGeneratedRevenueKobo = 0;
+      let inactiveNotGeneratedRevenueKobo = 0;
+
+      const eventsBreakdown = (eventsList || []).map((ev: any) => {
+        const isPastDate = new Date(ev.end_date || ev.event_date) <= now;
+        const isEndedStatus = ev.status === 'completed' || ev.status === 'cancelled';
+        const isActive = !isPastDate && !isEndedStatus;
+
+        if (isActive) {
+          totalActiveEvents++;
+        } else {
+          totalInactiveEvents++;
+        }
+
+        const tiers = ev.ticket_tiers || [];
+        const totalCapacity = tiers.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0);
+        const totalSold = tiers.reduce((acc: number, t: any) => acc + (t.sold || 0), 0);
+
+        // Orders metrics for this event
+        const eventOrders = eventOrdersMap.get(ev.id) || [];
+        const paidOrdersCount = eventOrders.filter((o: any) => o.total_amount > 0).length;
+
+        // Gross ticket sales (face value)
+        const grossTicketSalesKobo = tiers.reduce((acc: number, t: any) => acc + ((t.sold || 0) * (t.price || 0)), 0);
+
+        // Flat service fee: 100 Naira (10,000 kobo) per paid order
+        const serviceFeesKobo = paidOrdersCount * 10000;
+
+        // Total collected from buyers = ticket sales + service fees
+        const grossCollectedKobo = grossTicketSalesKobo + serviceFeesKobo;
+
+        // Vybetix 4% platform commission on ticket face value
+        const commission4PercentKobo = Math.round(grossTicketSalesKobo * 0.04);
+
+        // Total Vybetix take = 4% commission + service fees
+        const platformTotalTakeKobo = commission4PercentKobo + serviceFeesKobo;
+
+        // Net amount allocated to organizer = gross ticket sales - 4% commission (96% of ticket sales)
+        const organizerAllocationKobo = Math.max(0, grossTicketSalesKobo - commission4PercentKobo);
+
+        // Unsold tickets * price (Revenue not yet generated)
+        const notGeneratedRevenueKobo = tiers.reduce((acc: number, t: any) => {
+          const unsold = Math.max(0, (t.quantity || 0) - (t.sold || 0));
+          return acc + (unsold * (t.price || 0));
+        }, 0);
+
+        // Potential organizer payout if all remaining tickets sell (96%)
+        const potentialOrganizerAllocationKobo = Math.round(notGeneratedRevenueKobo * 0.96);
+
+        // Accumulate platform-wide totals
+        platformTotalGrossCollectedKobo += grossCollectedKobo;
+        platformTotalTicketSalesKobo += grossTicketSalesKobo;
+        platformTotalOrganizerAllocationsKobo += organizerAllocationKobo;
+        platformTotal4PercentCommissionKobo += commission4PercentKobo;
+        platformTotalServiceFeesKobo += serviceFeesKobo;
+        platformTotalVybetixEarningsKobo += platformTotalTakeKobo;
+        totalNotGeneratedRevenueKobo += notGeneratedRevenueKobo;
+
+        if (isActive) {
+          activeGeneratedRevenueKobo += grossTicketSalesKobo;
+          activeNotGeneratedRevenueKobo += notGeneratedRevenueKobo;
+        } else {
+          inactiveGeneratedRevenueKobo += grossTicketSalesKobo;
+          inactiveNotGeneratedRevenueKobo += notGeneratedRevenueKobo;
+        }
+
+        return {
+          id: ev.id,
+          title: ev.title,
+          slug: ev.slug,
+          eventDate: ev.event_date,
+          endDate: ev.end_date,
+          venue: ev.venue,
+          city: ev.city,
+          isActive,
+          status: ev.status,
+          organizer: ev.organizer ? (() => {
+            const o = Array.isArray(ev.organizer) ? ev.organizer[0] : ev.organizer;
+            return o ? { name: o.full_name || 'Unnamed Organizer', email: o.email || '' } : null;
+          })() : null,
+          totalCapacity,
+          totalSold,
+          paidOrdersCount,
+          fillRate: totalCapacity > 0 ? Math.round((totalSold / totalCapacity) * 100) : 0,
+
+          // Exact Financial Allocations
+          grossTicketSalesKobo,
+          serviceFeesKobo,
+          grossCollectedKobo,
+          commission4PercentKobo,
+          platformTotalTakeKobo,
+          organizerAllocationKobo,
+          notGeneratedRevenueKobo,
+          potentialOrganizerAllocationKobo,
+          totalPotentialRevenueKobo: grossTicketSalesKobo + notGeneratedRevenueKobo
+        };
+      });
+
+      // 4. Fetch pending payout requests needing manual approval (safe fallback)
+      let pendingPayoutRequests: any[] = [];
+      try {
+        const { data: pData } = await supabase
+          .from('payouts')
+          .select('*, organizer:users(full_name, email)')
+          .eq('status', 'pending');
+        pendingPayoutRequests = pData || [];
+      } catch (pErr) {
+        pendingPayoutRequests = [];
+      }
+
+      // 5. Gather outstanding security fraud triggers (safe fallback)
+      let activeFraudFlags = 0;
+      try {
+        const { count: fCount } = await supabase
+          .from('fraud_flags')
+          .select('*', { count: 'exact', head: true })
+          .eq('resolved', false);
+        activeFraudFlags = fCount || 0;
+      } catch (fErr) {
+        activeFraudFlags = 0;
+      }
 
       return success(res, {
         totalUsers: users.length,
         totalBuyers: users.filter(u => u.role === 'buyer').length,
         totalOrganizers: users.filter(u => u.role === 'organizer').length,
         totalBannedUsers: users.filter(u => u.is_banned).length,
-        totalEvents: eventsCount || 0,
+        totalEvents: eventsList?.length || 0,
+        activeEvents: totalActiveEvents,
+        inactiveEvents: totalInactiveEvents,
         totalSuccessfulOrders: orders.length,
-        totalRevenueKobo,
+
+        // Financial Allocations Platform-wide
+        platformTotalGrossCollectedKobo,
+        platformTotalTicketSalesKobo,
+        platformTotalOrganizerAllocationsKobo,
+        platformTotal4PercentCommissionKobo,
+        platformTotalServiceFeesKobo,
+        platformTotalVybetixEarningsKobo,
+
+        // Generated vs Unsold
+        totalGeneratedRevenueKobo: platformTotalTicketSalesKobo,
+        totalNotGeneratedRevenueKobo,
+        activeGeneratedRevenueKobo,
+        activeNotGeneratedRevenueKobo,
+        inactiveGeneratedRevenueKobo,
+        inactiveNotGeneratedRevenueKobo,
+
+        // Per-event list
+        eventsBreakdown,
+
         activeFraudFlags: activeFraudFlags || 0,
-        pendingPayoutRequests: pendingPayouts || []
+        pendingPayoutRequests: pendingPayoutRequests || []
       }, 'Global platform stats compiled successfully!');
 
     } catch (err: any) {
@@ -205,7 +379,144 @@ export const adminController = {
       console.error('Process payout error:', err);
       return error(res, 'Server error processing payout', err.message, 500);
     }
+  },
+
+  /**
+   * Retrieves all live subaccounts directly from Paystack.
+   */
+  listPaystackSubaccounts: async (req: AuthRequest, res: Response) => {
+    try {
+      const subaccounts = await paystackClient.listSubaccounts();
+      return success(res, subaccounts, 'Paystack subaccounts fetched successfully');
+    } catch (err: any) {
+      console.error('List Paystack subaccounts error:', err);
+      return error(res, 'Failed to fetch Paystack subaccounts', err.message, 500);
+    }
+  },
+
+  /**
+   * Automatically scans Paystack for existing subaccounts and synchronizes
+   * the subaccount codes into Supabase organizer_profiles.
+   */
+  syncPaystackSubaccounts: async (req: AuthRequest, res: Response) => {
+    try {
+      const remoteSubaccounts = await paystackClient.listSubaccounts();
+      if (!remoteSubaccounts || remoteSubaccounts.length === 0) {
+        const isTestKey = (process.env.PAYSTACK_SECRET_KEY || '').startsWith('sk_test_');
+        const hint = isTestKey
+          ? 'No subaccounts found under your Paystack TEST key. If your subaccounts are in Live Mode, update PAYSTACK_SECRET_KEY in apps/api/.env with your sk_live_... key, or create a test subaccount on Paystack.'
+          : 'No subaccounts found on your Paystack merchant account. Please create a subaccount on Paystack first.';
+        return error(res, 'No subaccounts found', hint, 404);
+      }
+
+      // Fetch all organizers
+      const { data: organizers, error: orgErr } = await supabase
+        .from('organizer_profiles')
+        .select('*, user:users(id, full_name, email)');
+
+      if (orgErr) {
+        return error(res, 'Failed to fetch organizer profiles', orgErr.message, 500);
+      }
+
+      // 1. Automatically update percentage_charge to 4% on Paystack for ALL remote subaccounts
+      // so your Paystack dashboard shows 4% instead of 100% or 0%
+      for (const s of remoteSubaccounts) {
+        if (s.percentage_charge !== 4) {
+          try {
+            await paystackClient.updateSubaccountPercentage(s.subaccount_code, 4);
+            console.log(`[Sync] Updated Paystack dashboard percentage for ${s.subaccount_code} to 4%`);
+          } catch (pUpdErr: any) {
+            console.warn(`[Sync] Could not update percentage for ${s.subaccount_code}:`, pUpdErr.message);
+          }
+        }
+      }
+
+      const updates: any[] = [];
+
+      for (const org of (organizers || [])) {
+        // Try to match by account number or business name, prioritizing VERIFIED subaccounts
+        const matchingCandidates = remoteSubaccounts.filter(s =>
+          (org.account_number && s.account_number === org.account_number) ||
+          (org.business_name && s.business_name?.toLowerCase() === org.business_name?.toLowerCase())
+        );
+
+        matchingCandidates.sort((a, b) => {
+          if (a.is_verified !== b.is_verified) return a.is_verified ? -1 : 1;
+          if (a.active !== b.active) return a.active ? -1 : 1;
+          return b.id - a.id;
+        });
+
+        const matched = matchingCandidates[0] || (remoteSubaccounts.length === 1 ? remoteSubaccounts[0] : null);
+
+        if (matched) {
+          const { error: updateErr } = await supabase
+            .from('organizer_profiles')
+            .update({
+              paystack_subaccount_code: matched.subaccount_code,
+              bank_name: org.bank_name || matched.settlement_bank,
+              account_number: org.account_number || matched.account_number,
+              business_name: org.business_name || matched.business_name,
+              verified: true
+            })
+            .eq('id', org.id);
+
+          if (!updateErr) {
+            const orgUser = Array.isArray(org.user) ? org.user[0] : org.user;
+            updates.push({
+              organizerId: org.user_id,
+              organizerName: orgUser?.full_name || org.business_name,
+              subaccountCode: matched.subaccount_code,
+              businessName: matched.business_name,
+              accountNumber: matched.account_number
+            });
+          }
+        }
+      }
+
+      // Also check all events and ensure the organizer has a linked subaccount
+      const { data: eventsList } = await supabase
+        .from('events')
+        .select('organizer_id, title, organizer:users(full_name, email)');
+
+      for (const ev of (eventsList || [])) {
+        if (!ev.organizer_id) continue;
+        const existing = (organizers || []).find(o => o.user_id === ev.organizer_id);
+        if ((!existing || !existing.paystack_subaccount_code) && remoteSubaccounts.length >= 1) {
+          // If there's a verified subaccount, prefer it
+          const s = remoteSubaccounts.find(x => x.is_verified) || remoteSubaccounts[0];
+          await supabase
+            .from('organizer_profiles')
+            .upsert({
+              user_id: ev.organizer_id,
+              business_name: s.business_name,
+              bank_name: s.settlement_bank,
+              account_number: s.account_number,
+              account_name: s.business_name,
+              paystack_subaccount_code: s.subaccount_code,
+              verified: true
+            }, { onConflict: 'user_id' });
+
+          const evOrgUser = Array.isArray(ev.organizer) ? ev.organizer[0] : ev.organizer;
+          updates.push({
+            organizerId: ev.organizer_id,
+            organizerName: evOrgUser?.full_name || s.business_name,
+            subaccountCode: s.subaccount_code,
+            businessName: s.business_name,
+            accountNumber: s.account_number
+          });
+        }
+      }
+
+      return success(res, {
+        remoteSubaccountsCount: remoteSubaccounts.length,
+        syncedCount: updates.length,
+        syncedOrganizers: updates
+      }, `Successfully synced ${updates.length} organizer profile(s) with Paystack subaccounts!`);
+
+    } catch (err: any) {
+      console.error('Sync Paystack subaccounts error:', err);
+      return error(res, 'Failed to sync Paystack subaccounts', err.message, 500);
+    }
   }
 };
-
-
+// Subaccount sync and live key bindings active

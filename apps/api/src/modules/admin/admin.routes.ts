@@ -12,5 +12,8 @@ router.get('/fraud', authMiddleware, requireRole(['admin']), adminController.get
 router.post('/resolve-flag', authMiddleware, requireRole(['admin']), adminController.resolveFlag);
 router.post('/payouts/process', authMiddleware, requireRole(['admin']), adminController.processPayout);
 
-export default router;
+// Paystack subaccounts auto-sync
+router.get('/paystack/subaccounts', authMiddleware, requireRole(['admin']), adminController.listPaystackSubaccounts);
+router.post('/paystack/sync-subaccounts', authMiddleware, requireRole(['admin']), adminController.syncPaystackSubaccounts);
 
+export default router;
