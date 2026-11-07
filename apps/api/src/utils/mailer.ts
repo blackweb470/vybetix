@@ -6,6 +6,19 @@ dotenv.config();
 const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_mock_key_12345';
 export const resend = new Resend(RESEND_API_KEY);
 
+// ─── Brand tokens ────────────────────────────────────────────────────────────
+const C = {
+  dark: '#161713',
+  cream: '#f4f1e9',
+  orange: '#ff5a24',
+  lime: '#c4db59',
+  pink: '#f7a6c5',
+  muted: '#a7a89e',
+  surface: '#1e1f18',
+  border: '#2d2e27',
+  dimText: '#737568',
+};
+
 interface TicketEmailData {
   id: string;
   tierName: string;
@@ -23,123 +36,364 @@ interface TicketConfirmationEmailParams {
   tickets: TicketEmailData[];
 }
 
-/**
- * Sends a premium ticket purchase confirmation email using Resend, complete with ticket inline details and QR attachment.
- */
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const naira = (kobo: number) =>
+  new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(kobo / 100);
+
+function formatEventDate(iso: string) {
+  const d = new Date(iso);
+  return {
+    day: d.toLocaleString('en-NG', { weekday: 'short', timeZone: 'Africa/Lagos' }),    // "Sat"
+    date: d.toLocaleString('en-NG', { day: '2-digit', timeZone: 'Africa/Lagos' }),      // "15"
+    month: d.toLocaleString('en-NG', { month: 'short', timeZone: 'Africa/Lagos' }).toUpperCase(), // "MAR"
+    full: d.toLocaleString('en-NG', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Lagos'
+    }) + ' WAT',
+  };
+}
+
+// ─── Main email builder ───────────────────────────────────────────────────────
 export async function sendTicketConfirmationEmail(params: TicketConfirmationEmailParams) {
   const { email, holderName, eventTitle, venue, eventDate, tickets } = params;
+  const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://vybetix.com' : 'http://localhost:3000');
+  const ev = formatEventDate(eventDate);
+  const firstName = holderName.split(' ')[0];
+  const totalKobo = tickets.reduce((s, t) => s + t.price, 0);
 
-  // Format currency from Kobo to Naira
-  const formatNaira = (kobo: number) => {
-    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(kobo / 100);
-  };
+  // ── Per-ticket pass blocks ─────────────────────────────────────────────────
+  const ticketBlocks = tickets.map((t, idx) => {
+    const viewUrl = `${frontendUrl}/tickets/view?id=${t.id}${t.qrToken ? `&token=${encodeURIComponent(t.qrToken)}` : ''}`;
+    const qrBlock = t.qrImageBase64
+      ? `<div style="background:#fff;border-radius:12px;padding:16px;display:inline-block;margin:0 auto 12px;">
+           <img src="${t.qrImageBase64}" width="200" height="200" alt="Gate QR" style="display:block;border-radius:4px;" />
+         </div>
+         <p style="margin:0 0 6px;font-size:11px;color:${C.muted};font-family:monospace;letter-spacing:0.5px;">
+           SCAN AT GATE ENTRANCE
+         </p>`
+      : '';
 
-  // Construct table rows for ticket details
-  const ticketRowsHtml = tickets.map((t, idx) => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #2d2d2d; color: #ffffff;">#${idx + 1}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #2d2d2d; color: #ffffff; font-weight: bold;">${t.tierName}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #2d2d2d; color: #a3a3a3;">${formatNaira(t.price)}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #2d2d2d; color: #3b82f6; font-family: monospace; font-size: 11px;">${t.id.slice(0, 8)}...</td>
-    </tr>
-  `).join('');
+    return `
+      <!-- TICKET PASS ${idx + 1} -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+        <tr>
+          <td style="background:${C.surface};border:2px solid ${C.border};border-radius:16px;overflow:hidden;">
 
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Your Vybetix Tickets</title>
-    </head>
-    <body style="background-color: #0b0b0f; color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px 20px; margin: 0;">
-      <div style="max-width: 600px; margin: 0 auto; background-color: #12121a; border-radius: 16px; border: 1px solid #27272a; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        
-        <!-- Header Banner -->
-        <div style="background: linear-gradient(135deg, #1e1b4b 0%, #311042 100%); padding: 30px 40px; text-align: center; border-bottom: 1px solid #27272a;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff;">⚡️ Vybetix</h1>
-          <p style="margin: 5px 0 0 0; font-size: 14px; color: #a5f3fc; font-weight: 500; text-transform: uppercase; letter-spacing: 2px;">Your Tickets Are Ready!</p>
-        </div>
-
-        <!-- Body -->
-        <div style="padding: 40px;">
-          <h2 style="margin-top: 0; font-size: 20px; font-weight: 700; color: #ffffff;">Hey ${holderName},</h2>
-          <p style="line-height: 1.6; color: #a3a3a3; font-size: 15px;">Your payment has been successfully processed! We have secured your spot for the event. Below you will find your ticket breakdown. In order to protect your ticket against unauthorized access and duplication, your secure ticket is bound to your physical device. Please log into the Vybetix app on your mobile device/browser to securely view your QR code for gate entry.</p>
-
-          <!-- Event Summary Card -->
-          <div style="margin: 30px 0; background-color: #1a1a24; border-radius: 12px; border: 1px solid #2d2d3d; padding: 20px;">
-            <p style="margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #3b82f6; font-weight: 600;">Event Details</p>
-            <h3 style="margin: 5px 0 10px 0; font-size: 18px; font-weight: 700; color: #ffffff;">${eventTitle}</h3>
-            <p style="margin: 4px 0; font-size: 14px; color: #d1d5db;">📍 <strong>Venue:</strong> ${venue}</p>
-            <p style="margin: 4px 0; font-size: 14px; color: #d1d5db;">📅 <strong>Date & Time:</strong> ${new Date(eventDate).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })} WAT</p>
-          </div>
-
-          <!-- Ticket Summary Table -->
-          <h3 style="font-size: 16px; font-weight: 600; color: #ffffff; margin-bottom: 12px;">Ticket Summary</h3>
-          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; margin-bottom: 30px;">
-            <thead>
-              <tr style="border-bottom: 2px solid #2d2d2d;">
-                <th style="padding: 10px; color: #a3a3a3; font-weight: 500;">No.</th>
-                <th style="padding: 10px; color: #a3a3a3; font-weight: 500;">Tier</th>
-                <th style="padding: 10px; color: #a3a3a3; font-weight: 500;">Price</th>
-                <th style="padding: 10px; color: #a3a3a3; font-weight: 500;">Ticket ID</th>
+            <!-- Pass top ribbon -->
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:${C.dark};padding:10px 20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;color:${C.cream};text-transform:uppercase;letter-spacing:1px;">
+                        VYBETIX <span style="color:${C.orange};">✳</span> OFFICIAL GATE PASS
+                      </td>
+                      <td align="right">
+                        <span style="background:${C.pink};color:${C.dark};font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.8px;padding:3px 10px;border-radius:20px;font-family:Arial,sans-serif;">
+                          ${t.tierName}
+                        </span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              ${ticketRowsHtml}
-            </tbody>
-          </table>
+            </table>
 
-          <!-- Security Notice -->
-          <div style="background-color: #1c1917; border-left: 4px solid #ea580c; padding: 15px; border-radius: 8px; font-size: 13px; color: #d6d3d1; line-height: 1.5;">
-            ⚠️ <strong>Anti-Scalping Protection:</strong> Tickets are digitally signed and cryptographically locked to the first device that claims/views them. Keep your account private.
-          </div>
-        </div>
+            <!-- Pass body: QR + meta -->
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding:24px 20px 20px;text-align:center;">
 
-        <!-- Footer -->
-        <div style="background-color: #0d0d12; padding: 20px 40px; text-align: center; border-top: 1px solid #27272a; font-size: 12px; color: #52525b;">
-          <p style="margin: 0;">&copy; 2026 Vybetix Platforms Ltd. All rights reserved.</p>
-          <p style="margin: 5px 0 0 0;">Lagos & Abuja, Nigeria • Support: <a href="mailto:hello@vybetix.com" style="color: #3b82f6; text-decoration: none;">hello@vybetix.com</a></p>
-        </div>
+                  <!-- Ticket number badge -->
+                  <p style="margin:0 0 14px;font-family:Arial,sans-serif;font-size:10px;font-weight:900;color:${C.orange};text-transform:uppercase;letter-spacing:2px;">
+                    TICKET ${idx + 1} OF ${tickets.length}
+                  </p>
 
-      </div>
-    </body>
-    </html>
-  `;
+                  <!-- QR Code -->
+                  ${qrBlock}
 
-  // Construct attachments array (only if qrImageBase64 is provided)
+                  <!-- CTA Button -->
+                  <div style="margin:4px 0 18px;">
+                    <a href="${viewUrl}" target="_blank"
+                       style="display:inline-block;background:${C.orange};color:${C.dark};text-decoration:none;font-family:Arial,sans-serif;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:1px;padding:12px 28px;border-radius:8px;border:2px solid ${C.dark};">
+                      📱 Open Live Pass on Phone
+                    </a>
+                  </div>
+
+                  <!-- Divider -->
+                  <table width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0;">
+                    <tr>
+                      <td style="border-top:1px dashed ${C.border};font-size:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+
+                  <!-- Ticket metadata rows -->
+                  <table width="100%" cellpadding="0" cellspacing="8" style="margin-top:14px;text-align:left;">
+                    <tr>
+                      <td style="font-family:Arial,sans-serif;font-size:9px;font-weight:700;color:${C.dimText};text-transform:uppercase;letter-spacing:1px;padding-bottom:2px;">Tier</td>
+                      <td align="right" style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;color:${C.cream};padding-bottom:2px;">${t.tierName}</td>
+                    </tr>
+                    <tr>
+                      <td style="font-family:Arial,sans-serif;font-size:9px;font-weight:700;color:${C.dimText};text-transform:uppercase;letter-spacing:1px;padding-bottom:2px;">Price</td>
+                      <td align="right" style="font-family:Arial,sans-serif;font-size:11px;font-weight:900;color:${C.lime};padding-bottom:2px;">${t.price > 0 ? naira(t.price) : 'FREE'}</td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" style="border-top:1px solid ${C.border};padding-top:8px;"></td>
+                    </tr>
+                    <tr>
+                      <td style="font-family:monospace;font-size:9px;color:${C.dimText};padding-bottom:2px;">PASS ID</td>
+                      <td align="right" style="font-family:monospace;font-size:9px;color:${C.muted};padding-bottom:2px;">${t.id}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Pass footer bar (perforated-style) -->
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:${C.dark};border-top:2px dashed ${C.border};padding:8px 20px;text-align:center;font-family:Arial,sans-serif;font-size:9px;font-weight:700;color:${C.dimText};text-transform:uppercase;letter-spacing:2px;">
+                  PERMANENT PASS &nbsp;✳&nbsp; NO DEVICE BINDING &nbsp;✳&nbsp; VERIFIED BY VYBETIX
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>`;
+  }).join('');
+
+  // ── Full email HTML ────────────────────────────────────────────────────────
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Your Vybetix Ticket</title>
+</head>
+<body style="margin:0;padding:0;background:${C.dark};font-family:Arial,Helvetica,sans-serif;">
+
+  <!-- Outer wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.dark};padding:32px 16px;">
+    <tr>
+      <td align="center">
+
+        <!-- Email card — max 600px -->
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${C.surface};border:2px solid ${C.border};border-radius:20px;overflow:hidden;">
+
+          <!-- ══ HEADER BANNER ══ -->
+          <tr>
+            <td style="background:linear-gradient(135deg,${C.dark} 0%,#1a1b14 100%);border-bottom:2px solid ${C.orange};padding:0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+
+                <!-- Brand bar -->
+                <tr>
+                  <td style="padding:24px 32px 0;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-family:Arial,sans-serif;font-size:22px;font-weight:900;color:${C.cream};text-transform:uppercase;letter-spacing:-0.5px;">
+                          VYBETIX<span style="color:${C.orange};margin-left:2px;">✳</span>
+                        </td>
+                        <td align="right" style="font-family:Arial,sans-serif;font-size:9px;font-weight:700;color:${C.muted};text-transform:uppercase;letter-spacing:2px;vertical-align:middle;">
+                          LIVE TICKETING
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Hero text -->
+                <tr>
+                  <td style="padding:20px 32px 28px;">
+                    <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:${C.orange};text-transform:uppercase;letter-spacing:2px;">
+                      PAYMENT CONFIRMED ✦ YOUR PASS IS READY
+                    </p>
+                    <h1 style="margin:0;font-family:Arial,sans-serif;font-size:34px;font-weight:900;color:${C.cream};text-transform:uppercase;letter-spacing:-1px;line-height:1.05;">
+                      ${eventTitle}
+                    </h1>
+                    <p style="margin:10px 0 0;font-family:Arial,sans-serif;font-size:13px;color:${C.muted};line-height:1.5;">
+                      Hey <strong style="color:${C.cream};">${firstName}</strong>, you're in. Your gate pass${tickets.length > 1 ? 'es are' : ' is'} secured and ready to scan.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- ══ EVENT DETAILS CARD ══ -->
+          <tr>
+            <td style="padding:24px 32px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.dark};border:1.5px solid ${C.border};border-radius:14px;overflow:hidden;">
+
+                <!-- Date column + info column -->
+                <tr>
+                  <!-- Date stamp -->
+                  <td width="90" style="background:${C.orange};padding:20px 0;text-align:center;vertical-align:top;">
+                    <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;font-weight:900;color:${C.dark};text-transform:uppercase;letter-spacing:1px;">${ev.month}</p>
+                    <p style="margin:4px 0;font-family:Arial,sans-serif;font-size:38px;font-weight:900;color:${C.dark};line-height:1;">${ev.date}</p>
+                    <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;font-weight:700;color:${C.dark};">${ev.day}</p>
+                  </td>
+                  <!-- Event info -->
+                  <td style="padding:16px 20px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:9px;font-weight:700;color:${C.dimText};text-transform:uppercase;letter-spacing:1.5px;">
+                      EVENT DETAILS
+                    </p>
+                    <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:14px;font-weight:900;color:${C.cream};line-height:1.2;">
+                      ${eventTitle}
+                    </p>
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-family:Arial,sans-serif;font-size:11px;color:${C.muted};padding-bottom:4px;">
+                          📍 &nbsp;<strong style="color:${C.cream};">${venue}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="font-family:Arial,sans-serif;font-size:11px;color:${C.muted};">
+                          🗓 &nbsp;<strong style="color:${C.cream};">${ev.full}</strong>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Order total row -->
+                <tr>
+                  <td colspan="2" style="border-top:1px solid ${C.border};padding:10px 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;color:${C.dimText};text-transform:uppercase;letter-spacing:1px;">
+                          ${tickets.length} TICKET${tickets.length > 1 ? 'S' : ''} &nbsp;·&nbsp; ORDER TOTAL
+                        </td>
+                        <td align="right" style="font-family:Arial,sans-serif;font-size:14px;font-weight:900;color:${C.lime};">
+                          ${totalKobo > 0 ? naira(totalKobo) : 'FREE'}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- ══ SECTION LABEL ══ -->
+          <tr>
+            <td style="padding:28px 32px 10px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-top:1px solid ${C.border};font-size:0;">&nbsp;</td>
+                </tr>
+              </table>
+              <p style="margin:14px 0 0;font-family:Arial,sans-serif;font-size:10px;font-weight:900;color:${C.orange};text-transform:uppercase;letter-spacing:2px;">
+                🎟 YOUR GATE ENTRY PASS${tickets.length > 1 ? 'ES' : ''}
+              </p>
+            </td>
+          </tr>
+
+          <!-- ══ TICKET PASS BLOCKS ══ -->
+          <tr>
+            <td style="padding:0 32px;">
+              ${ticketBlocks}
+            </td>
+          </tr>
+
+          <!-- ══ HOW TO USE ══ -->
+          <tr>
+            <td style="padding:4px 32px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.dark};border-left:4px solid ${C.lime};border-radius:0 10px 10px 0;padding:16px 20px;">
+                <tr>
+                  <td>
+                    <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;font-weight:900;color:${C.lime};text-transform:uppercase;letter-spacing:1.5px;">
+                      HOW TO USE YOUR PASS
+                    </p>
+                    <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:12px;color:${C.muted};line-height:1.6;">
+                      <strong style="color:${C.cream};">1.</strong> Open the <strong style="color:${C.cream};">"Open Live Pass on Phone"</strong> button above — bookmark it.
+                    </p>
+                    <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:12px;color:${C.muted};line-height:1.6;">
+                      <strong style="color:${C.cream};">2.</strong> Flash the <strong style="color:${C.cream};">QR code</strong> on your screen (or print it) at the venue gate.
+                    </p>
+                    <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:${C.muted};line-height:1.6;">
+                      <strong style="color:${C.cream};">3.</strong> No app, no login needed. Works from <strong style="color:${C.cream};">any device</strong>, any time.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ══ SECURITY NOTICE ══ -->
+          <tr>
+            <td style="padding:0 32px 28px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.dark};border:1px solid ${C.border};border-radius:10px;padding:14px 18px;">
+                <tr>
+                  <td style="font-family:Arial,sans-serif;font-size:11px;color:${C.dimText};line-height:1.6;">
+                    🔒 <strong style="color:${C.cream};">Fraud-Proof Pass:</strong> Each QR is cryptographically HMAC-signed by Vybetix servers. Screen duplicates and forged passes fail the gate scanner automatically. Keep this email private.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ══ FOOTER ══ -->
+          <tr>
+            <td style="background:${C.dark};border-top:2px solid ${C.border};padding:24px 32px;text-align:center;">
+              <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:18px;font-weight:900;color:${C.cream};text-transform:uppercase;letter-spacing:-0.5px;">
+                VYBETIX<span style="color:${C.orange};">✳</span>
+              </p>
+              <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:10px;color:${C.dimText};text-transform:uppercase;letter-spacing:2px;">
+                LIVE TICKETING · NIGERIA
+              </p>
+              <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:11px;color:${C.dimText};">
+                Questions? <a href="mailto:hello@vybetix.com" style="color:${C.orange};text-decoration:none;font-weight:700;">hello@vybetix.com</a>
+              </p>
+              <p style="margin:0;font-family:Arial,sans-serif;font-size:10px;color:#3f4038;">
+                © 2026 Vybetix Platforms Ltd. Lagos &amp; Abuja, Nigeria.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Email card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
+
+  // ── Attachments (QR code PNGs) ─────────────────────────────────────────────
   const attachments = tickets
     .filter(t => t.qrImageBase64)
-    .map((t, index) => {
-      // Strip "data:image/png;base64," prefix to obtain pure base64 binary
+    .map((t, i) => {
       const base64Data = t.qrImageBase64!.replace(/^data:image\/png;base64,/, '');
-      
       return {
-        filename: `Vybetix-ticket-${index + 1}-${t.tierName.toLowerCase().replace(/\s+/g, '-')}.png`,
-        content: Buffer.from(base64Data, 'base64')
+        filename: `Vybetix-Pass-${i + 1}-${t.tierName.toLowerCase().replace(/\s+/g, '-')}.png`,
+        content: Buffer.from(base64Data, 'base64'),
       };
     });
 
-  try {
-    // Check for mock sending if Resend Key is undefined or default placeholder
-    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 're_mock_key_12345') {
-      console.log(`[Mock Mailer] Emailed ${email} for "${eventTitle}" with ${tickets.length} tickets (without static QR attachments).`);
-      return { success: true, mock: true };
-    }
+  // ── Send ───────────────────────────────────────────────────────────────────
+  if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 're_mock_key_12345') {
+    console.log(`[Mock Mailer] Would email "${email}" for "${eventTitle}" — ${tickets.length} ticket(s).`);
+    return { success: true, mock: true };
+  }
 
+  try {
     const response = await resend.emails.send({
-      from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@')) 
-        ? process.env.RESEND_FROM_EMAIL 
+      from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@'))
+        ? process.env.RESEND_FROM_EMAIL
         : 'Vybetix <tickets@vybetix.com>',
       to: [email],
-      subject: `⚡️ Your tickets for ${eventTitle} are ready!`,
-      html: emailHtml,
-      ...(attachments.length > 0 ? { attachments } : {})
+      subject: `🎟 Your pass for ${eventTitle} is confirmed!`,
+      html,
+      ...(attachments.length > 0 ? { attachments } : {}),
     });
-
     return { success: true, data: response };
-  } catch (error) {
-    console.error('Resend execution failure:', error);
-    throw error;
+  } catch (err) {
+    console.error('[Mailer] Resend failure:', err);
+    throw err;
   }
 }
 
@@ -153,69 +407,116 @@ export async function sendEventReminderEmail(
   venue: string,
   eventDate: string
 ) {
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html>
-    <body style="background-color: #0b0b0f; color: #f3f4f6; font-family: sans-serif; padding: 40px 20px;">
-      <div style="max-width: 600px; margin: 0 auto; background-color: #12121a; border-radius: 16px; border: 1px solid #27272a; padding: 40px;">
-        <h2 style="color: #ffffff;">Hey ${name},</h2>
-        <p>This is a quick reminder that <strong>${eventTitle}</strong> is happening tomorrow!</p>
-        <p>📍 Venue: ${venue}</p>
-        <p>📅 Time: ${new Date(eventDate).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })} WAT</p>
-        <p>Don't forget to have your ticket QR code ready for scanning at the gate.</p>
-        <p>See you there!</p>
-      </div>
-    </body>
-    </html>
-  `;
+  const ev = formatEventDate(eventDate);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Event Reminder</title></head>
+<body style="margin:0;padding:0;background:${C.dark};font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.dark};padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${C.surface};border:2px solid ${C.border};border-radius:20px;overflow:hidden;">
+        <tr>
+          <td style="background:${C.dark};border-bottom:2px solid ${C.orange};padding:24px 32px;">
+            <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:22px;font-weight:900;color:${C.cream};">VYBETIX<span style="color:${C.orange};">✳</span></p>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:${C.orange};text-transform:uppercase;letter-spacing:2px;">⏰ EVENT REMINDER — TOMORROW</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:15px;color:${C.cream};">Hey <strong>${name.split(' ')[0]}</strong>,</p>
+            <p style="margin:0 0 20px;font-family:Arial,sans-serif;font-size:14px;color:${C.muted};line-height:1.6;">
+              <strong style="color:${C.cream};">${eventTitle}</strong> is happening <strong style="color:${C.orange};">tomorrow</strong>. Make sure your pass is ready!
+            </p>
+            <table cellpadding="0" cellspacing="0" style="background:${C.dark};border:1px solid ${C.border};border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+              <tr><td style="font-family:Arial,sans-serif;font-size:12px;color:${C.muted};padding-bottom:6px;">📍 <strong style="color:${C.cream};">${venue}</strong></td></tr>
+              <tr><td style="font-family:Arial,sans-serif;font-size:12px;color:${C.muted};">🗓 <strong style="color:${C.cream};">${ev.full}</strong></td></tr>
+            </table>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:${C.muted};line-height:1.6;">
+              Check your original confirmation email for your QR pass link, or find it in <strong style="color:${C.cream};">My Tickets</strong> on Vybetix. See you there!
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:${C.dark};border-top:1px solid ${C.border};padding:16px 32px;text-align:center;font-family:Arial,sans-serif;font-size:10px;color:#3f4038;">
+            © 2026 Vybetix Platforms Ltd. &nbsp;·&nbsp; <a href="mailto:hello@vybetix.com" style="color:${C.orange};text-decoration:none;">hello@vybetix.com</a>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
   if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 're_mock_key_12345') {
     console.log(`[Mock Mailer] Reminder sent to ${email} for "${eventTitle}"`);
     return { success: true, mock: true };
   }
 
-  return await resend.emails.send({
-    from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@')) 
-      ? process.env.RESEND_FROM_EMAIL 
+  return resend.emails.send({
+    from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@'))
+      ? process.env.RESEND_FROM_EMAIL
       : 'Vybetix <tickets@vybetix.com>',
     to: [email],
-    subject: `⏰ Reminder: ${eventTitle} is tomorrow!`,
-    html: emailHtml
+    subject: `⏰ Reminder: ${eventTitle} is tomorrow — have your pass ready!`,
+    html,
   });
 }
 
 /**
- * Sends a device unlock OTP email to the ticket holder.
+ * Sends a device unlock OTP email (kept for legacy routes, binding is now disabled).
  */
 export async function sendDeviceUnlockOTP(email: string, name: string, otp: string, eventTitle: string) {
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html>
-    <body style="background-color: #0b0b0f; color: #f3f4f6; font-family: sans-serif; padding: 40px 20px;">
-      <div style="max-width: 600px; margin: 0 auto; background-color: #12121a; border-radius: 16px; border: 1px solid #27272a; padding: 40px;">
-        <h2 style="color: #ffffff;">Hey ${name},</h2>
-        <p>You requested to unlock your ticket for <strong>${eventTitle}</strong> on a new device.</p>
-        <p>Your authorization code is:</p>
-        <div style="margin: 20px 0; padding: 15px; background-color: #1a1a24; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #e8441a; border-radius: 8px;">
-          ${otp}
-        </div>
-        <p>This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
-      </div>
-    </body>
-    </html>
-  `;
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Ticket Unlock</title></head>
+<body style="margin:0;padding:0;background:${C.dark};font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.dark};padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${C.surface};border:2px solid ${C.border};border-radius:20px;overflow:hidden;">
+        <tr>
+          <td style="background:${C.dark};border-bottom:2px solid ${C.orange};padding:24px 32px;">
+            <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:22px;font-weight:900;color:${C.cream};">VYBETIX<span style="color:${C.orange};">✳</span></p>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:${C.orange};text-transform:uppercase;letter-spacing:2px;">🔐 DEVICE UNLOCK CODE</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px;text-align:center;">
+            <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:15px;color:${C.cream};">Hey <strong>${name.split(' ')[0]}</strong>,</p>
+            <p style="margin:0 0 24px;font-family:Arial,sans-serif;font-size:13px;color:${C.muted};line-height:1.6;">
+              You requested to view your ticket for <strong style="color:${C.cream};">${eventTitle}</strong> on a new device.
+            </p>
+            <div style="display:inline-block;background:${C.dark};border:2px solid ${C.orange};border-radius:12px;padding:20px 40px;margin-bottom:20px;">
+              <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:9px;font-weight:700;color:${C.dimText};text-transform:uppercase;letter-spacing:2px;">YOUR AUTHORIZATION CODE</p>
+              <p style="margin:0;font-family:'Courier New',monospace;font-size:36px;font-weight:900;color:${C.orange};letter-spacing:8px;">${otp}</p>
+            </div>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:11px;color:${C.dimText};">Expires in 10 minutes. If you didn't request this, ignore this email.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:${C.dark};border-top:1px solid ${C.border};padding:16px 32px;text-align:center;font-family:Arial,sans-serif;font-size:10px;color:#3f4038;">
+            © 2026 Vybetix Platforms Ltd. &nbsp;·&nbsp; <a href="mailto:hello@vybetix.com" style="color:${C.orange};text-decoration:none;">hello@vybetix.com</a>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
   if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 're_mock_key_12345') {
     console.log(`[Mock Mailer] OTP ${otp} sent to ${email}`);
     return { success: true, mock: true };
   }
 
-  return await resend.emails.send({
-    from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@')) 
-      ? process.env.RESEND_FROM_EMAIL 
+  return resend.emails.send({
+    from: (process.env.RESEND_FROM_EMAIL && process.env.RESEND_FROM_EMAIL.includes('@'))
+      ? process.env.RESEND_FROM_EMAIL
       : 'Vybetix <tickets@vybetix.com>',
     to: [email],
-    subject: `🔐 Unlock Your Ticket - ${eventTitle}`,
-    html: emailHtml
+    subject: `🔐 Your Vybetix unlock code — ${eventTitle}`,
+    html,
   });
 }
+
+

@@ -1,574 +1,665 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useEvents } from '../hooks/useEvents';
-import { Button } from '../components/ui/button';
-import { Card } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
-import { SearchableSelect } from '../components/ui/searchable-select';
-import { formatNaira, formatDate } from '../lib/utils';
-import {
-  Search, Calendar, MapPin, Music, Trophy, Theater, Disc,
-  Tent, ShieldCheck, Zap, Ticket, ArrowRight, Lock, Flame, ChevronRight, HelpCircle,
-  Cpu, GraduationCap, Utensils, Tag, Heart
-} from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { formatNaira, formatDate, formatTime } from '../lib/utils';
+import { EventDetail } from '../types';
+import CheckoutModal from '../components/tickets/CheckoutModal';
 
 const CATEGORIES = [
-  { name: 'music', label: 'Music', icon: Music, gradient: 'from-[#E8441A] to-[#ff7d59]' },
-  { name: 'sports', label: 'Sports', icon: Trophy, gradient: 'from-amber-500 to-orange-400' },
-  { name: 'tech', label: 'Tech & Sci', icon: Cpu, gradient: 'from-blue-600 to-cyan-500' },
-  { name: 'comedy', label: 'Comedy', icon: Theater, gradient: 'from-purple-600 to-pink-500' },
-  { name: 'church', label: 'Religion', icon: Heart, gradient: 'from-emerald-600 to-teal-500' },
-  { name: 'campus', label: 'Campus Hub', icon: GraduationCap, gradient: 'from-indigo-600 to-purple-500' },
-  { name: 'food', label: 'Food', icon: Utensils, gradient: 'from-rose-600 to-amber-500' },
-  { name: 'other', label: 'Custom', icon: Tag, gradient: 'from-zinc-600 to-zinc-400' }
+  { name: 'All Events', value: 'all' },
+  { name: 'Music', value: 'music' },
+  { name: 'Campus', value: 'campus' },
+  { name: 'Tech', value: 'tech' },
+  { name: 'Comedy', value: 'comedy' },
+  { name: 'Sports', value: 'sports' },
+  { name: 'Food', value: 'food' },
+  { name: 'Arts', value: 'arts' },
+  { name: 'Nightlife', value: 'nightlife' },
 ];
 
-const getCategoryLabel = (category: string, customCategory?: string) => {
-  if (category === 'other' && customCategory) return customCategory;
-  const labels: Record<string, string> = {
-    music: 'Music',
-    sports: 'Sports',
-    tech: 'Tech',
-    comedy: 'Comedy',
-    church: 'Religion',
-    campus: 'Campus',
-    food: 'Food',
-    other: 'Other',
-  };
-  return labels[category] || category;
-};
-
-const ALL_STATES = [
-  'Abia', 'Abuja FCT', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
-  'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'Gombe', 'Imo', 'Jigawa', 'Kaduna',
-  'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
-  'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'
+const CITIES = [
+  { label: 'All Cities', value: 'all' },
+  { label: 'Lagos', value: 'Lagos' },
+  { label: 'Abuja', value: 'Abuja' },
+  { label: 'Port Harcourt', value: 'Port Harcourt' },
+  { label: 'Ibadan', value: 'Ibadan' },
+  { label: 'Benin City', value: 'Benin City' },
+  { label: 'Enugu', value: 'Enugu' },
 ];
-const POPULAR_STATES = ['Lagos', 'Abuja FCT', 'Rivers', 'Kano', 'Oyo', 'Delta'];
 
-export default function LandingPage() {
-  const [search, setSearch] = useState('');
-  const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+export default function Page() {
+  const { user, isAuthenticated } = useAuth();
 
-  // Set up active filters to fetch live events from backend
-  const filters = {
-    search: search || undefined,
-    city: selectedCity ? selectedCity.toLowerCase().replace(' ', '_') : undefined,
-    category: selectedCategory,
-    limit: 15
+  // UI state
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [checkoutEvent, setCheckoutEvent] = useState<EventDetail | null>(null);
+  const [toastText, setToastText] = useState<string | null>(null);
+  const [savedEvents, setSavedEvents] = useState<Record<string, boolean>>({});
+
+  // Home filter state
+  const [homeQuery, setHomeQuery] = useState('');
+  const [homeCategory, setHomeCategory] = useState('all');
+  const [homeCity, setHomeCity] = useState('all');
+
+  // Real events from Supabase via API
+  const { data: dbEvents, isLoading } = useEvents({ limit: 60 });
+
+  const events: EventDetail[] = useMemo(() => {
+    return Array.isArray(dbEvents) ? dbEvents : [];
+  }, [dbEvents]);
+
+  // Featured hero event (first real event from DB)
+  const featuredEvent: EventDetail | null = events.length > 0 ? events[0] : null;
+
+  // Home filtered events
+  const homeFilteredEvents = useMemo(() => {
+    return events.filter(ev => {
+      const query = homeQuery.trim().toLowerCase();
+      const matchCat = homeCategory === 'all' || (ev.category && ev.category.toLowerCase() === homeCategory.toLowerCase());
+      const matchCity = homeCity === 'all' || (ev.city && ev.city.toLowerCase() === homeCity.toLowerCase());
+      const matchQuery = !query ||
+        ev.title.toLowerCase().includes(query) ||
+        (ev.description && ev.description.toLowerCase().includes(query)) ||
+        (ev.venue && ev.venue.toLowerCase().includes(query)) ||
+        (ev.city && ev.city.toLowerCase().includes(query));
+      return matchCat && matchCity && matchQuery;
+    });
+  }, [events, homeQuery, homeCategory, homeCity]);
+
+  useEffect(() => {
+    document.title = 'Vybetix — Be there.';
+
+    const onScroll = () => setIsScrolled(window.scrollY > 15);
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    try {
+      const stored = localStorage.getItem('vybetix_saved_events');
+      if (stored) setSavedEvents(JSON.parse(stored));
+    } catch (_) {}
+
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastText(msg);
+    setTimeout(() => setToastText(null), 3200);
   };
 
-  const { data: events, isLoading } = useEvents(filters);
+  const toggleSave = (id: string) => {
+    const next = !savedEvents[id];
+    const updated = { ...savedEvents, [id]: next };
+    setSavedEvents(updated);
+    try {
+      localStorage.setItem('vybetix_saved_events', JSON.stringify(updated));
+    } catch (_) {}
+    showToast(next ? 'Saved to your vybes ♥' : 'Removed from your saved vybes.');
+  };
 
-  // Divide events into Spotlight (first 3) and Trending Grid (remaining)
-  const spotlightEvents = events ? events.slice(0, 3) : [];
-  const remainingEvents = events ? events.slice(3) : [];
+  const getMinPrice = (ev: EventDetail): number => {
+    const tiers = ev.ticket_tiers || ev.tiers || [];
+    if (!tiers || tiers.length === 0) return 0;
+    return Math.min(...tiers.map(t => Number(t.price) || 0));
+  };
 
-  const handleCitySelect = (city: string | undefined) => {
-    setSelectedCity(city);
+  const getEventBackground = (ev: EventDetail, index: number): string => {
+    if (ev.cover_image_url) {
+      return `linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.85) 100%), url(${ev.cover_image_url})`;
+    }
+    const cycle = index % 3;
+    if (cycle === 0) return 'linear-gradient(135deg, #ff5a24 0%, #b8340a 100%)';
+    if (cycle === 1) return 'linear-gradient(135deg, #f7a6c5 0%, #9e4e6f 100%)';
+    return 'linear-gradient(135deg, #d7e5a3 0%, #687046 100%)';
+  };
+
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="w-full bg-[#08080C] pb-32 overflow-x-hidden font-outfit relative">
+    <>
+      {/* 0. Live Announcement Bar */}
+      <div className="demo">
+        Verified live ticketing · Scannable passes sent to your email · Instant entry
+      </div>
 
-      {/* Immersive Widescreen Background Overlays */}
-      <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[50%] rounded-full bg-[#E8441A] blur-[200px] opacity-[0.05] pointer-events-none" />
-      <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/30 blur-[180px] opacity-[0.05] pointer-events-none" />
+      {/* 1. Header Navigation */}
+      <header className={`site-nav ${isScrolled ? 'nav-scrolled' : ''}`} id="site-nav">
+        <div className="nav-shell">
+          <Link href="/" className="logo nav-brand" aria-label="Vybetix home">
+            vybetix<i aria-hidden="true"></i>
+            <span className="brand-caption">YOUR NEXT GREAT NIGHT</span>
+          </Link>
 
-      {/* 1. HERO SEARCH CONSOLE (Inspired by Ticketmaster's immersive focus) */}
-      <section className="relative w-full min-h-[460px] sm:min-h-[520px] flex items-center justify-center px-6 bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(8, 8, 12, 0.45), rgba(8, 8, 12, 0.98)), url('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200')" }}>
-        <div className="absolute top-0 inset-x-0 h-44 bg-gradient-to-b from-[#08080C]/90 to-transparent pointer-events-none" />
+          <nav className="desktop-nav" aria-label="Main navigation">
+            <a
+              href="#discover"
+              onClick={(e) => { e.preventDefault(); scrollTo('discover'); }}
+              data-nav="discover"
+            >
+              <span className="nav-index">01</span> Discover events
+            </a>
+            <a
+              href="#about"
+              onClick={(e) => { e.preventDefault(); scrollTo('about'); }}
+              data-nav="about"
+            >
+              <span className="nav-index">02</span> The experience
+            </a>
+            <Link
+              href={isAuthenticated && user?.role === 'organizer' ? '/dashboard' : '/register?role=organizer'}
+              data-nav="host"
+            >
+              <span className="nav-index">03</span> For organizers
+            </Link>
+          </nav>
 
-        <div className="mx-auto max-w-5xl w-full flex flex-col items-center text-center relative z-30 pt-16 pb-8">
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white mb-6 uppercase tracking-tight font-syne leading-[1.05]">
-            Discover Live Events <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8441A] via-[#ff7d59] to-amber-500">
-              Near You. Secured Instantly.
-            </span>
-          </h1>
-
-          <p className="text-zinc-400 text-sm sm:text-base max-w-xl mb-10 leading-relaxed font-light">
-            Search thousands of music concerts, premium beach festivals, and verified campus vibes. Backed by HMAC-SHA256 digital entry codes.
-          </p>
-
-          {/* Ticketmaster-Style Double Filter Search Box */}
-          <div className="w-full max-w-3xl bg-zinc-950/85 backdrop-blur-xl border border-zinc-800/80 rounded-2xl sm:rounded-full p-2 flex flex-col sm:flex-row items-center gap-2 shadow-[0_30px_60px_rgba(0,0,0,0.8)] focus-within:border-[#E8441A]/50 transition-all duration-300">
-
-            {/* Search Input field */}
-            <div className="flex-1 w-full flex items-center pl-4 border-b sm:border-b-0 sm:border-r border-zinc-850 pb-2.5 sm:pb-0">
-              <Search className="h-5 w-5 text-zinc-500 mr-3 shrink-0" />
-              <input
-                type="text"
-                placeholder="Search events, artists, colleges, or venues..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-transparent border-none text-sm text-zinc-205 placeholder-zinc-500 focus:outline-none focus:ring-0 py-3"
-              />
-            </div>
-
-            {/* City Dropdown Selection */}
-            <div className="w-full sm:w-[1px] h-[1px] sm:h-8 bg-zinc-800" />
-            <div className="flex-1 sm:flex-none sm:w-56 flex items-center px-4 w-full h-12 relative z-50">
-              <MapPin className="h-5 w-5 text-zinc-500 shrink-0" />
-              <SearchableSelect
-                options={[
-                  { value: '', label: 'All Locations' },
-                  ...ALL_STATES.map(c => ({ value: c, label: c }))
-                ]}
-                value={selectedCity || ''}
-                onChange={(val) => handleCitySelect(val)}
-                placeholder="All Locations"
-                className="[&>button]:bg-transparent [&>button]:border-transparent [&>button]:h-full [&>button]:text-sm [&>button]:font-bold [&>button]:text-zinc-300 hover:[&>button]:text-white focus:[&>button]:ring-0"
-              />
-            </div>
-
-            {/* Submit Button */}
-            <button className="w-full sm:w-auto px-8 py-3.5 sm:rounded-full bg-gradient-to-r from-[#E8441A] to-[#ff663e] hover:brightness-110 active:scale-95 transition-all text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-[#E8441A]/20 shrink-0">
-              Search
+          <div className="nav-actions">
+            {isAuthenticated ? (
+              <Link
+                className="nav-signin"
+                href={user?.role === 'organizer' ? '/dashboard' : '/tickets'}
+              >
+                {user?.role === 'organizer' ? 'Dashboard' : 'My Passes'}
+              </Link>
+            ) : (
+              <Link className="nav-signin" href="/login">
+                Sign in
+              </Link>
+            )}
+            <Link
+              className="nav-host"
+              href={isAuthenticated && user?.role === 'organizer' ? '/events/create' : '/register?role=organizer'}
+            >
+              Create an event <span aria-hidden="true">↗</span>
+            </Link>
+            <button
+              className="menu-toggle"
+              id="menu-toggle"
+              aria-label="Open navigation menu"
+              aria-haspopup="dialog"
+              aria-controls="mobile-nav"
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <span className="menu-lines" aria-hidden="true">
+                <i></i><i></i>
+              </span>
+              <span>MENU</span>
             </button>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* 2. CIRCULAR CATEGORY NAV (Famous Ticketmaster circles element) */}
-      <section className="w-full px-6 mt-8 relative z-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="bg-zinc-950/90 backdrop-blur-2xl border border-zinc-850 p-6 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
-            <div className="flex flex-wrap justify-center sm:justify-around items-center gap-6 sm:gap-4">
+      {/* Mobile Drawer */}
+      {mobileNavOpen && (
+        <dialog id="mobile-nav" className="mobile-nav" open aria-labelledby="mobile-nav-title">
+          <div className="mobile-nav-top">
+            <span id="mobile-nav-title">VYBETIX / LIVE TICKETING</span>
+            <button id="close-nav" aria-label="Close navigation menu" onClick={() => setMobileNavOpen(false)}>×</button>
+          </div>
+          <p className="mobile-menu-caption">
+            GO SOMEWHERE.<br />FEEL SOMETHING.
+          </p>
+          <nav aria-label="Mobile navigation">
+            <a
+              href="#discover"
+              onClick={(e) => { e.preventDefault(); setMobileNavOpen(false); scrollTo('discover'); }}
+              data-nav="discover"
+            >
+              <small>01 / FIND YOUR PEOPLE</small>
+              <span>Discover events <b>↗</b></span>
+            </a>
+            <a
+              href="#about"
+              onClick={(e) => { e.preventDefault(); setMobileNavOpen(false); scrollTo('about'); }}
+              data-nav="about"
+            >
+              <small>02 / THE FEELING</small>
+              <span>The experience <b>↗</b></span>
+            </a>
+            <Link
+              href={isAuthenticated && user?.role === 'organizer' ? '/dashboard' : '/register?role=organizer'}
+              data-nav="host"
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <small>03 / MAKE IT HAPPEN</small>
+              <span>For organizers <b>↗</b></span>
+            </Link>
+          </nav>
+          <div className="mobile-account-links">
+            {isAuthenticated ? (
+              <Link href={user?.role === 'organizer' ? '/dashboard' : '/tickets'} onClick={() => setMobileNavOpen(false)}>
+                {user?.role === 'organizer' ? 'Dashboard ↗' : 'My Passes ↗'}
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" onClick={() => setMobileNavOpen(false)}>Sign in ↗</Link>
+                <Link href="/register" onClick={() => setMobileNavOpen(false)}>Create account ↗</Link>
+              </>
+            )}
+          </div>
+          <Link
+            className="btn mobile-create"
+            href={isAuthenticated && user?.role === 'organizer' ? '/events/create' : '/register?role=organizer'}
+            onClick={() => setMobileNavOpen(false)}
+          >
+            Create an event <span className="arrow">↗</span>
+          </Link>
+          <div className="mobile-menu-foot">
+            <span>STARRING YOU.<br />DIRECTED BY THE NIGHT.</span>
+            <span className="mobile-star" aria-hidden="true"></span>
+          </div>
+        </dialog>
+      )}
 
-              {/* All Vibes circle */}
-              <button
-                onClick={() => setSelectedCategory(undefined)}
-                className="flex flex-col items-center gap-2 group focus:outline-none"
-              >
-                <div className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all duration-300 ${selectedCategory === undefined ? 'bg-[#E8441A] border-[#E8441A] shadow-lg shadow-[#E8441A]/25 text-white' : 'bg-zinc-900/60 border-zinc-800 text-zinc-450 group-hover:border-zinc-500 group-hover:text-zinc-200'}`}>
-                  <Ticket className="h-5.5 w-5.5" />
+      {/* =========================================================================
+          HOMEPAGE
+          ========================================================================= */}
+      <div id="homepage">
+        <div className="wrap">
+          <main>
+            {/* 1. Hero Section */}
+            <section className="hero">
+              <div className="hero-copy">
+                <div className="eyebrow">
+                  <span className="dot"></span> VYBETIX PRESENTS / YOUR NEXT GREAT NIGHT
                 </div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-zinc-300 transition-colors">All Vibes</span>
-              </button>
-
-              {/* Categorized circles */}
-              {CATEGORIES.map((cat) => {
-                const Icon = cat.icon;
-                const isActive = selectedCategory === cat.name;
-                return (
-                  <button
-                    key={cat.name}
-                    onClick={() => setSelectedCategory(cat.name)}
-                    className="flex flex-col items-center gap-2 group focus:outline-none"
+                <h1 className="newheadline">
+                  <span className="headline-top">DON'T JUST</span>
+                  <span className="vybe-line">FEEL THE <i aria-hidden="true"></i></span>
+                  <span className="outline-vybe">VYBE.</span>
+                  <span className="live-tag">GO LIVE IT. ↗</span>
+                </h1>
+                <p>
+                  Front-row moments. Dance-floor friendships.<br />
+                  Find the events you'll still be talking about on Monday.
+                </p>
+                <div className="heroactions">
+                  <a
+                    className="btn"
+                    href="#discover"
+                    onClick={(e) => { e.preventDefault(); scrollTo('discover'); }}
                   >
-                    <div className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all duration-300 ${isActive ? `bg-gradient-to-r ${cat.gradient} border-transparent shadow-lg text-white` : `bg-zinc-900/60 border-zinc-800 text-zinc-450 group-hover:border-zinc-500 group-hover:text-zinc-200`}`}>
-                      <Icon className="h-5.5 w-5.5" />
-                    </div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-zinc-300 transition-colors">{cat.label}</span>
-                  </button>
-                );
-              })}
-
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. INTERACTIVE "EVENTS NEAR YOU" QUICK CITIES BAR */}
-      <section className="w-full px-6 mt-16 relative z-30">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-zinc-950/40 border border-zinc-900 p-5 rounded-2xl">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A]">
-                <MapPin className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">SHOWING EVENTS IN</p>
-                <p className="text-sm font-black text-white uppercase tracking-wider">{selectedCity || 'All Locations, Nigeria'}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleCitySelect(undefined)}
-                className={`px-3 py-1.5 rounded-lg text-xxs font-black uppercase tracking-widest transition-all ${!selectedCity ? 'bg-[#E8441A] text-white' : 'bg-zinc-900/60 border border-zinc-800 text-zinc-500 hover:text-zinc-200'}`}
-              >
-                All
-              </button>
-              {POPULAR_STATES.map(c => (
-                <button
-                  key={c}
-                  onClick={() => handleCitySelect(c)}
-                  className={`px-3 py-1.5 rounded-lg text-xxs font-black uppercase tracking-widest transition-all ${selectedCity === c ? 'bg-[#E8441A] text-white' : 'bg-zinc-900/60 border border-zinc-800 text-zinc-500 hover:text-zinc-200'}`}
-                >
-                  {c}
-                </button>
-              ))}
-              {/* More states dropdown */}
-              <div className="w-40 z-50">
-                <SearchableSelect
-                  options={[
-                    { value: '', label: 'More States' },
-                    ...ALL_STATES.filter(s => !POPULAR_STATES.includes(s)).map(c => ({ value: c, label: c }))
-                  ]}
-                  value={selectedCity && !POPULAR_STATES.includes(selectedCity) ? selectedCity : ''}
-                  onChange={(val) => val && handleCitySelect(val)}
-                  placeholder="More States"
-                  className={selectedCity && !POPULAR_STATES.includes(selectedCity)
-                    ? '[&>button]:bg-[#E8441A] [&>button]:text-white [&>button]:border-transparent [&>button]:h-[26px] [&>button]:px-3 [&>button]:py-0.5 [&>button]:rounded-lg [&>button]:text-xxs [&>button]:font-black [&>button]:uppercase [&>button]:tracking-widest'
-                    : '[&>button]:bg-zinc-900/60 [&>button]:text-zinc-500 [&>button]:h-[26px] [&>button]:px-3 [&>button]:py-0.5 [&>button]:rounded-lg [&>button]:text-xxs [&>button]:font-black [&>button]:uppercase [&>button]:tracking-widest [&>button]:border-zinc-800 hover:[&>button]:text-zinc-200'
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. SPOTLIGHT EVENTS (Immersive highlights header block) */}
-      {spotlightEvents.length > 0 && (
-        <section className="w-full px-6 mt-16 relative z-10">
-          <div className="mx-auto max-w-6xl">
-            <h2 className="text-xl sm:text-2xl font-black uppercase text-white font-syne tracking-tight mb-6 flex items-center gap-2">
-              <Flame className="h-5.5 w-5.5 text-amber-500" />
-              Spotlight Tour selections
-            </h2>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-              {/* Primary massive widescreen showcase */}
-              <div className="lg:col-span-8 group relative rounded-3xl overflow-hidden border border-zinc-850 h-[380px] sm:h-[420px] flex flex-col justify-end p-6 sm:p-10 shadow-2xl transition-all hover:border-[#E8441A]/30">
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-105"
-                  style={{ backgroundImage: `linear-gradient(to top, rgba(8, 8, 14, 0.98) 10%, rgba(8, 8, 14, 0.35) 60%, rgba(8, 8, 14, 0) 100%), url('${spotlightEvents[0].cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=800'}')` }}
-                />
-
-                <div className="relative z-10 flex flex-col gap-3 max-w-xl">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-[#E8441A] font-black text-[9px] tracking-widest px-2.5 py-0.5">
-                      {getCategoryLabel(spotlightEvents[0].category, spotlightEvents[0].custom_category)}
-                    </Badge>
-                    {spotlightEvents[0].is_university_only && (
-                      <Badge className="bg-purple-600/90 font-black text-[9px] tracking-widest px-2.5 py-0.5 border border-purple-500/25">
-                        CAMPUS EXCLUSIVE
-                      </Badge>
-                    )}
-                  </div>
-
-                  <span className="text-xs font-black text-[#E8441A] uppercase tracking-widest flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    {formatDate(spotlightEvents[0].event_date)}
-                  </span>
-
-                  <h3 className="text-2xl sm:text-4xl font-black text-white font-syne uppercase tracking-tight group-hover:text-[#E8441A] transition-colors leading-[1.1]">
-                    {spotlightEvents[0].title}
-                  </h3>
-
-                  <p className="text-xs text-zinc-400 flex items-center gap-1">
-                    <MapPin className="h-4.5 w-4.5 text-zinc-550 shrink-0" />
-                    {spotlightEvents[0].venue}, {spotlightEvents[0].city}
-                  </p>
-
-                  <div className="flex items-center justify-between border-t border-zinc-800/60 pt-5 mt-3">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-bold text-zinc-550 uppercase tracking-widest">TICKETS</span>
-                      <span className="text-lg font-black text-white">
-                        {(() => {
-                          const tiers = spotlightEvents[0].ticket_tiers || [];
-                          const hasFree = tiers.some(t => t.price === 0);
-                          const hasPaid = tiers.some(t => t.price > 0);
-                          const startPrice = hasPaid ? Math.min(...tiers.filter(t => t.price > 0).map(t => t.price)) : 0;
-
-                          if (hasFree && hasPaid) return 'Free & Paid';
-                          if (hasPaid) return `From ${formatNaira(startPrice)}`;
-                          return 'FREE ENTRY';
-                        })()}
-                      </span>
-                    </div>
-                    <Link href={`/events/${spotlightEvents[0].slug}`}>
-                      <button className="px-6 py-3 rounded-xl bg-white text-black hover:bg-[#E8441A] hover:text-white transition-all duration-300 text-xs font-black uppercase tracking-widest flex items-center gap-1">
-                        <span>Get Tickets</span>
-                        <ChevronRight className="h-4.5 w-4.5" />
-                      </button>
-                    </Link>
-                  </div>
+                    Find your next vybe <span className="arrow">↗</span>
+                  </a>
+                  <Link
+                    className="textlink"
+                    href={isAuthenticated && user?.role === 'organizer' ? '/events/create' : '/register?role=organizer'}
+                  >
+                    Make something happen ↗
+                  </Link>
+                </div>
+                <div className="herotiny">
+                  <span className="tinyart"></span> For the nights that never leave you.
                 </div>
               </div>
 
-              {/* Auxiliary Spotlight list grids */}
-              <div className="lg:col-span-4 flex flex-col gap-6 justify-between">
-                {spotlightEvents.slice(1, 3).map((event) => {
-                  const activeTiers = event.ticket_tiers || [];
-                  const hasFreeTier = activeTiers.some(t => t.price === 0);
-                  const hasPaidTier = activeTiers.some(t => t.price > 0);
-                  const startingPrice = hasPaidTier
-                    ? Math.min(...activeTiers.filter(t => t.price > 0).map(t => t.price))
-                    : 0;
+              {/* 3D Real Ticket Stack */}
+              <div className="heroart" aria-label="Official live pass preview">
+                <div className="orbit-label" aria-hidden="true">YOUR NEXT STORY STARTS OUTSIDE ↗</div>
+                <div className="halo"></div>
+                <div className="mini-pass" aria-hidden="true">
+                  <span>ALL ACCESS / VERIFIED</span>
+                  <strong>OUTSIDE<br />IS A PLACE.</strong>
+                  <div className="barcode"></div>
+                </div>
+                <div className="backticket">
+                  LESS SCROLLING.<br />MORE LIVING.
+                </div>
+                <div className="ticket">
+                  <div className="tickethead">
+                    <span>vybetix </span><span>ADMIT ONE / VERIFIED PASS</span>
+                  </div>
+                  <div
+                    className="poster"
+                    style={{
+                      backgroundImage: featuredEvent?.cover_image_url
+                        ? `linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url(${featuredEvent.cover_image_url})`
+                        : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    }}
+                  >
+                    <div className="flower"></div>
+                    <div className="posterword">
+                      {featuredEvent ? (
+                        <>
+                          {featuredEvent.title.toUpperCase().slice(0, 24)}
+                          <small>{featuredEvent.city.toUpperCase()} · VERIFIED PASS</small>
+                        </>
+                      ) : (
+                        <>
+                          VYBETIX<br />LIVE PASS
+                          <small>OFFICIAL GATE PASSES</small>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="ticketname">
+                    {featuredEvent ? featuredEvent.title : 'LIVE EVENTS IN NIGERIA'}
+                  </div>
+                  <div className="ticketdata">
+                    <span>
+                      {featuredEvent ? (
+                        <>
+                          {formatDate(featuredEvent.event_date, 'EEE, d MMM yyyy').toUpperCase()}<br />
+                          <strong>{formatTime(featuredEvent.event_date)}</strong>
+                        </>
+                      ) : (
+                        <>
+                          OFFICIAL PASS<br />
+                          <strong>SCANNABLE GATE ACCESS</strong>
+                        </>
+                      )}
+                    </span>
+                    <span>
+                      {featuredEvent ? (
+                        <>
+                          {featuredEvent.city.toUpperCase()}, NIGERIA<br />
+                          <strong>{featuredEvent.venue.toUpperCase()}</strong>
+                        </>
+                      ) : (
+                        <>
+                          VYBETIX VERIFIED<br />
+                          <strong>INSTANT DELIVERY</strong>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="tear">
+                    <div className="barcode"></div>
+                    <span>
+                      VYB / {featuredEvent ? featuredEvent.id.slice(0, 6).toUpperCase() : 'LIVE'} / PASS
+                    </span>
+                  </div>
+                </div>
+                <div className="sticker">
+                  LESS<br />FOMO.<br />MORE GO.
+                </div>
+                <div className="wristband" aria-hidden="true">
+                  <span> VYBETIX</span>
+                  <b>REAL LIFE &gt; REELS</b>
+                  <span>ADMIT YOU ↗</span>
+                </div>
+                <div className="sidecaption">01 / YOUR PASS TO SOMETHING GOOD</div>
+                <div className="spark"></div>
+              </div>
+
+              <div className="hero-bottom">
+                <span>STARRING YOU. / DIRECTED BY THE NIGHT.</span>
+                <a
+                  href="#discover"
+                  onClick={(e) => { e.preventDefault(); scrollTo('discover'); }}
+                >
+                  SCROLL TO FIND YOUR PEOPLE <b>↓</b>
+                </a>
+              </div>
+            </section>
+          </main>
+        </div>
+
+        {/* Marquee Ticker */}
+        <div className="marquee" aria-hidden="true">
+          <div className="track">
+            <span>LESS FOMO</span>
+            <b aria-hidden="true">/</b>
+            <span>MORE FRONT ROW</span>
+            <b aria-hidden="true">/</b>
+            <span>FIND YOUR PEOPLE</span>
+            <b aria-hidden="true">/</b>
+            <span>FEEL EVERYTHING</span>
+            <b aria-hidden="true">/</b>
+            <span>LESS FOMO</span>
+          </div>
+        </div>
+
+        {/* 2. Discover / Real Events Section */}
+        <section className="discover" id="discover">
+          <div className="wrap">
+            <div className="sectionhead">
+              <div>
+                <div className="kicker">ACT 01 / THE LINEUP</div>
+                <h2>COMING SOON.<br />TO YOUR LIFE.</h2>
+              </div>
+              <p>A big night out or a new obsession.<br />There's a vybe with your name on it.</p>
+            </div>
+
+            <form
+              className="searchbar"
+              id="searchform"
+              onSubmit={(e) => {
+                e.preventDefault();
+                scrollTo('events');
+              }}
+            >
+              <input
+                id="search"
+                type="search"
+                placeholder="Search events, venues, artists…"
+                aria-label="Search events"
+                value={homeQuery}
+                onChange={(e) => setHomeQuery(e.target.value)}
+              />
+              <select
+                id="home-category"
+                aria-label="Event category"
+                value={homeCategory}
+                onChange={(e) => setHomeCategory(e.target.value)}
+              >
+                {CATEGORIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                id="city"
+                aria-label="Choose city"
+                value={homeCity}
+                onChange={(e) => setHomeCity(e.target.value)}
+              >
+                {CITIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <button className="btn" type="submit">Find events ↗</button>
+            </form>
+
+            {isLoading ? (
+              <div className="empty" style={{ padding: '60px 0' }}>
+                <p style={{ fontSize: 13, color: '#a7a89e', letterSpacing: 1 }}>LOADING VERIFIED EVENTS FROM DATABASE...</p>
+              </div>
+            ) : homeFilteredEvents.length > 0 ? (
+              <div className="events" id="events">
+                {homeFilteredEvents.map((ev, i) => {
+                  const visualClass = i % 3 === 0 ? 'one' : i % 3 === 1 ? 'two' : 'three';
+                  const minPrice = getMinPrice(ev);
+                  const isSaved = savedEvents[ev.id];
 
                   return (
-                    <div
-                      key={event.id}
-                      className="group flex-1 relative rounded-3xl overflow-hidden border border-zinc-850 p-6 flex flex-col justify-end shadow-2xl h-[180px] sm:h-[195px] transition-all hover:border-[#E8441A]/30"
+                    <article
+                      key={ev.id}
+                      className="event"
+                      data-category={ev.category}
+                      data-city={ev.city}
+                      data-name={ev.title}
+                      data-price={minPrice > 0 ? formatNaira(minPrice) : 'Free'}
+                      data-date={formatDate(ev.event_date)}
                     >
                       <div
-                        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-105"
-                        style={{ backgroundImage: `linear-gradient(to top, rgba(8, 8, 14, 0.95) 20%, rgba(8, 8, 14, 0.25) 70%, rgba(8, 8, 14, 0) 100%), url('${event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=800'}')` }}
-                      />
-
-                      <div className="relative z-10 flex flex-col gap-1.5">
-                        <span className="text-[10px] font-black text-[#E8441A] uppercase tracking-widest flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" /> {formatDate(event.event_date)}
+                        className={`eventvisual ${visualClass} ${ev.cover_image_url ? 'cinema-photo' : ''}`}
+                        style={{
+                          backgroundImage: ev.cover_image_url
+                            ? `linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.85) 100%), url(${ev.cover_image_url})`
+                            : getEventBackground(ev, i)
+                        }}
+                      >
+                        <span className="eventlabel">
+                          {(ev.category || 'LIVE').toUpperCase()} / VERIFIED
                         </span>
+                        <button
+                          type="button"
+                          className="save"
+                          aria-label={`Save ${ev.title}`}
+                          aria-pressed={isSaved ? 'true' : 'false'}
+                          onClick={() => toggleSave(ev.id)}
+                        >
+                          {isSaved ? '♥' : '♡'}
+                        </button>
 
-                        <h4 className="text-lg font-black text-white font-syne uppercase tracking-tight line-clamp-1 group-hover:text-[#E8441A] transition-colors">
-                          {event.title}
-                        </h4>
-
-                        <div className="flex items-center justify-between pt-2.5 mt-1 border-t border-zinc-800/40">
-                          <span className="text-sm font-extrabold text-white">
-                            {hasFreeTier && hasPaidTier ? 'Free/Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'FREE')}
-                          </span>
-                          <Link href={`/events/${event.slug}`} className="text-xxs font-black uppercase tracking-widest text-[#E8441A] group-hover:text-[#ff5d35] flex items-center gap-0.5">
-                            <span>Get Tickets</span>
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Link>
+                        <div className="arttitle">
+                          {ev.title.toUpperCase().slice(0, 20)}
+                          <small>{ev.city.toUpperCase()} · LIVE EVENT</small>
                         </div>
                       </div>
-                    </div>
+
+                      <div className="eventbody">
+                        <div className="meta">
+                          {formatDate(ev.event_date, 'EEE, d MMM').toUpperCase()} · {formatTime(ev.event_date)}
+                        </div>
+                        <h3>{ev.title}</h3>
+                        <p className="location">{ev.city} · {ev.venue}</p>
+                        <div className="eventfoot">
+                          <strong>
+                            <small>FROM</small>
+                            {minPrice > 0 ? formatNaira(minPrice) : 'Free'}
+                          </strong>
+                          <button
+                            type="button"
+                            className="view"
+                            aria-label={`Get tickets for ${ev.title}`}
+                            onClick={() => setCheckoutEvent(ev)}
+                          >
+                            ↗
+                          </button>
+                        </div>
+                      </div>
+                    </article>
                   );
                 })}
               </div>
+            ) : (
+              <div id="empty" className="empty">
+                <h3>No published events match your search criteria.</h3>
+                <p style={{ fontSize: 13, color: '#88745c', marginTop: 8 }}>
+                  Try adjusting your city or category, or create your own event!
+                </p>
+                <Link
+                  href="/register?role=organizer"
+                  className="btn"
+                  style={{ marginTop: 20, display: 'inline-flex' }}
+                >
+                  Host an event now ↗
+                </Link>
+              </div>
+            )}
 
-            </div>
+            <p className="resultnote" id="resultnote" aria-live="polite">
+              {homeFilteredEvents.length} live event{homeFilteredEvents.length === 1 ? '' : 's'} available in lineup.
+            </p>
           </div>
         </section>
+
+        {/* 3. Cinema Interlude */}
+        <section className="cinema-interlude" aria-label="The Vybetix experience">
+          <div className="film-edge" aria-hidden="true"></div>
+          <div className="wrap scene">
+            <div className="scene-meta">
+              <span>VYBETIX ORIGINAL MOMENTS</span>
+              <span>VOL. 01 / FULL VOLUME</span>
+            </div>
+            <div className="scene-title">
+              <span>THIS ISN'T</span>
+              <em>A WATCH-LATER</em>
+              <span>KIND OF LIFE.</span>
+            </div>
+            <div className="scene-bottom">
+              <p>Some moments only happen once.<br />Be in the room when they do.</p>
+              <a
+                href="#discover"
+                onClick={(e) => { e.preventDefault(); scrollTo('discover'); }}
+                className="round-cta"
+                aria-label="Explore events"
+              >
+                ↗
+              </a>
+            </div>
+          </div>
+          <div className="film-edge" aria-hidden="true"></div>
+        </section>
+
+        {/* 4. Manifesto & Host Sections */}
+        <div className="wrap">
+          <section className="manifesto" id="about">
+            <div className="eyebrow"><span className="dot"></span> ACT 02 / THE FEELING</div>
+            <p>
+              Your camera roll deserves better than screenshots of plans. <span>Go to the gig. Meet your people. Stay for one more song.</span>
+            </p>
+          </section>
+
+          <section className="host" id="host">
+            <div className="hostcopy">
+              <div className="kicker">ACT 03 / BEHIND THE SCENES</div>
+              <h2>YOU BRING THE VYBE.<br />WE'LL HOLD THE DOOR.</h2>
+              <p>
+                Planning a concert, campus rave, or club night? Issue tamper-proof HMAC gate passes with automatic Paystack payouts on Vybetix.
+              </p>
+              <Link
+                className="btn"
+                href={isAuthenticated && user?.role === 'organizer' ? '/events/create' : '/register?role=organizer'}
+              >
+                Let's host something <span className="arrow">↗</span>
+              </Link>
+            </div>
+            <div className="hostgraphic" aria-hidden="true">
+              <div className="hoststamp">
+                <small>VYBETIX / ORGANIZERS CLUB</small>
+                YOUR EVENT.<br />YOUR CROWD.<br /><em>YOUR RULES.</em>
+                <div className="barcode"></div>
+              </div>
+            </div>
+          </section>
+
+          <footer>
+            <div className="closing-credit">
+              <span>DON'T WAIT FOR THE RECAP.</span>
+              <a href="#discover" onClick={(e) => { e.preventDefault(); scrollTo('discover'); }}>BE THE STORY. ↗</a>
+            </div>
+            <div className="footrow">
+              <Link className="logo" href="/">
+                vybetix<i></i>
+              </Link>
+              <p>Log off. Show up.<br />Take the memory home.</p>
+              <a className="textlink" href="#discover" onClick={(e) => { e.preventDefault(); scrollTo('discover'); }}>
+                Find a vybe ↗
+              </a>
+            </div>
+            <div className="footerbottom">
+              <span>© 2026 Vybetix. Live Ticketing Platform in Nigeria.</span>
+              <span>HMAC-Sealed Fraud-Proof Gate Passes · Instant Email &amp; WhatsApp Delivery</span>
+            </div>
+          </footer>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          PAYSTACK CHECKOUT MODAL
+          ========================================================================= */}
+      {checkoutEvent && (
+        <CheckoutModal
+          isOpen={Boolean(checkoutEvent)}
+          onClose={() => setCheckoutEvent(null)}
+          event={checkoutEvent}
+        />
       )}
 
-      {/* 5. MAIN VIBES EVENT LISTING GRID (Ticketmaster trending style) */}
-      <section className="w-full px-6 mt-20 relative z-10">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex items-center justify-between mb-8 border-b border-zinc-900 pb-4">
-            <h2 className="text-xl sm:text-2xl font-black uppercase text-white font-syne tracking-tight flex items-center gap-2">
-              <Flame className="h-5.5 w-5.5 text-[#E8441A]" />
-              Trending Vibes
-            </h2>
-            <Link
-              href="/events"
-              className="text-xs font-black uppercase tracking-widest text-[#E8441A] hover:text-[#ff5d35] flex items-center gap-1.5 group"
-            >
-              <span>Explore All Vibes</span>
-              <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </div>
-
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[1, 2, 3].map((n) => (
-                <div key={n} className="h-[400px] w-full rounded-3xl bg-zinc-950/20 border border-zinc-900/80 overflow-hidden flex flex-col justify-between">
-                  <div>
-                    <div className="h-52 w-full bg-zinc-900/40 animate-pulse" />
-                    <div className="p-6 flex flex-col gap-4">
-                      <div className="w-24 h-3 bg-zinc-900/50 rounded animate-pulse" />
-                      <div className="w-3/4 h-5 bg-zinc-800/50 rounded animate-pulse" />
-                      <div className="w-1/2 h-3 bg-zinc-900/50 rounded animate-pulse mt-1" />
-                    </div>
-                  </div>
-                  <div className="px-6 pb-6 pt-4 border-t border-zinc-900/60 flex items-center justify-between">
-                    <div className="flex flex-col gap-2">
-                      <div className="w-12 h-2 bg-zinc-900/50 rounded animate-pulse" />
-                      <div className="w-16 h-4 bg-zinc-800/50 rounded animate-pulse" />
-                    </div>
-                    <div className="w-24 h-8 bg-zinc-900/50 rounded-xl animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : remainingEvents.length > 0 || (spotlightEvents.length > 0 && remainingEvents.length === 0) ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-
-              {/* Fallback to original list if spotlight divides too aggressively */}
-              {(remainingEvents.length > 0 ? remainingEvents : events || []).map((event) => {
-                const coverImage = event.cover_image_url || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600';
-                const activeTiers = event.ticket_tiers || [];
-                const hasFreeTier = activeTiers.some(t => t.price === 0);
-                const hasPaidTier = activeTiers.some(t => t.price > 0);
-                const startingPrice = hasPaidTier
-                  ? Math.min(...activeTiers.filter(t => t.price > 0).map(t => t.price))
-                  : 0;
-
-                const catData = CATEGORIES.find(c => c.name === event.category);
-                const badgeGradient = catData ? catData.gradient : 'from-[#E8441A] to-[#ff7d59]';
-
-                return (
-                  <Card key={event.id} className="group hover:-translate-y-2 transition-all duration-500 border-zinc-900/80 bg-zinc-950/20 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col justify-between h-full">
-                    <div className="absolute inset-0 border border-transparent group-hover:border-[#E8441A]/15 rounded-2xl pointer-events-none transition-colors duration-500" />
-
-                    <div>
-                      {/* Cover image wrap */}
-                      <div className="relative h-52 w-full overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={coverImage}
-                          alt={event.title}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#08080E] via-transparent to-transparent" />
-
-                        <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
-                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${badgeGradient}`}>
-                            {getCategoryLabel(event.category, event.custom_category)}
-                          </span>
-                          {event.is_university_only && (
-                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-purple-600/90 border border-purple-500/30 backdrop-blur-md">
-                              CAMPUS ACCESS
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Content Wrap */}
-                      <div className="p-6 flex flex-col gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <span className="text-[10px] font-black text-[#E8441A] uppercase tracking-widest flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {formatDate(event.event_date)}
-                          </span>
-                          <h3 className="text-lg font-black text-white tracking-tight uppercase font-syne group-hover:text-[#E8441A] transition-colors duration-300 line-clamp-1">
-                            {event.title}
-                          </h3>
-                          <p className="text-zinc-500 text-xs flex items-center gap-1 font-light tracking-wide line-clamp-1 mt-1">
-                            <MapPin className="h-3.5 w-3.5 text-zinc-650 shrink-0" />
-                            {event.venue}, {event.city}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Action Footer */}
-                    <div className="px-6 pb-6 pt-4 border-t border-zinc-900/60 flex items-center justify-between mt-auto">
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Entry Fee</span>
-                        <span className="text-sm font-extrabold text-white">
-                          {hasFreeTier && hasPaidTier ? 'Free & Paid' : (hasPaidTier ? formatNaira(startingPrice) : 'FREE')}
-                        </span>
-                      </div>
-                      <Link href={`/events/${event.slug}`}>
-                        <button className="px-5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-white hover:text-black hover:border-white transition-all duration-300 text-xxs font-black uppercase tracking-widest active:scale-95">
-                          Get Tickets
-                        </button>
-                      </Link>
-                    </div>
-
-                  </Card>
-                );
-              })}
-
-            </div>
-          ) : (
-            <div className="w-full text-center py-20 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/20 backdrop-blur-md">
-              <Disc className="h-12 w-12 text-zinc-700 animate-spin-slow mx-auto mb-4" />
-              <p className="text-xs font-black text-zinc-500 uppercase tracking-widest">
-                No active events found. Try adjusting your search query or location!
-              </p>
-            </div>
-          )}
+      {toastText && (
+        <div className="toast" id="toast" role="status">
+          {toastText}
         </div>
-      </section>
-
-      {/* 6. TICKETMASTER TRUST SECURED BANNER PANELS */}
-      <section className="w-full px-6 mt-32 relative z-10">
-        <div className="mx-auto max-w-6xl border-t border-zinc-900 pt-20">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-
-            <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
-              <div className="w-10 h-10 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A] shrink-0">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">100% Cryptographic Lock</h4>
-                <p className="text-zinc-550 text-xs font-light leading-relaxed">
-                  Every ticket is locked down with HMAC-SHA256 digital seals. Fake, duplicate or screenshot tickets are instantly flagged at the gate.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
-              <div className="w-10 h-10 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A] shrink-0">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Device Locked Tickets</h4>
-                <p className="text-zinc-550 text-xs font-light leading-relaxed">
-                  For extreme fraud protection, tickets are permanently locked to the exact mobile device they are first opened on.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Anti-Screenshot Tech</h4>
-                <p className="text-zinc-550 text-xs font-light leading-relaxed">
-                  Advanced browser protections and dynamic rotating UI elements make screenshotting and screen-recording tickets completely useless at the gate.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 items-start p-6 bg-zinc-950/25 border border-zinc-950 rounded-2xl">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                <Cpu className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <h4 className="text-sm font-black text-white font-outfit uppercase tracking-wider">Cryptographic Engine</h4>
-                <p className="text-zinc-550 text-xs font-light leading-relaxed">
-                  Gate workers scan tickets powered by HMAC-SHA256 digital seals in under 1 second. Instantly detecting fakes offline.
-                </p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* 7. ORGANIZER CTA HERO CARD */}
-      <section className="w-full px-6 mt-28 relative z-10">
-        <div className="mx-auto max-w-6xl">
-          <div className="relative w-full rounded-[32px] bg-gradient-to-r from-zinc-950 to-zinc-900/80 border border-zinc-850 p-8 sm:p-12 lg:p-16 overflow-hidden flex flex-col items-center text-center">
-
-            {/* Ambient glows inside card */}
-            <div className="absolute right-0 top-0 w-80 h-80 rounded-full bg-[#E8441A]/10 blur-[100px] pointer-events-none" />
-            <div className="absolute left-0 bottom-0 w-80 h-80 rounded-full bg-purple-500/5 blur-[100px] pointer-events-none" />
-
-            <div className="relative z-10 max-w-2xl flex flex-col items-center">
-              <Badge className="mb-6 font-bold bg-[#E8441A]/10 border border-[#E8441A]/20 text-[#E8441A] tracking-widest px-3.5 py-1">
-                HOST A VIBE
-              </Badge>
-              <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white font-syne uppercase tracking-tight leading-tight mb-6">
-                Are you an Event Organizer?
-              </h2>
-              <p className="text-zinc-400 text-sm leading-relaxed font-light mb-10">
-                Setup your tickets in 5 minutes, limit access to target universities, verify guests at the gate in under 1 second with cryptographically locked QR codes, and receive direct fast payouts.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-                <Link href="/register?role=organizer">
-                  <Button className="w-full sm:w-auto px-8 py-3.5 bg-white text-black hover:bg-zinc-200 text-xs font-black tracking-widest uppercase rounded-xl">
-                    Create Organizer Profile
-                  </Button>
-                </Link>
-                <Link href="/events">
-                  <Button variant="outline" className="w-full sm:w-auto px-8 py-3.5 text-zinc-300 border-zinc-800 hover:bg-zinc-900 text-xs font-black tracking-widest uppercase rounded-xl">
-                    Browse All Events
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-    </div>
+      )}
+    </>
   );
 }
-
