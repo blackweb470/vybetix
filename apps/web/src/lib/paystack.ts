@@ -15,7 +15,7 @@ export async function openPaystackCheckout(options: PaystackCheckoutOptions) {
   if (typeof window === 'undefined') return;
 
   const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_mock_public_key_12345';
-  
+
   try {
     const mod = await import('@paystack/inline-js');
     const PaystackPop = (mod as any).default || mod;
