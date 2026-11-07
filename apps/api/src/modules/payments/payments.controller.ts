@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { paystackClient } from '../../config/paystack';
-import { generateQRToken, generateQRImage } from '../../utils/qrcode';
+import { generateQRToken, generateQRImage, generatePermanentQRToken } from '../../utils/qrcode';
 import { sendTicketConfirmationEmail } from '../../utils/mailer';
 import { sendTicketWhatsAppNotification } from '../../utils/whatsapp';
 import crypto from 'crypto';
@@ -41,8 +41,8 @@ export async function fulfillOrder(orderId: string, tierId: string, attendees: {
       return;
     }
 
-    const ticketInserts = [];
-    const emailTicketsData = [];
+    const ticketInserts: any[] = [];
+    const emailTicketsData: any[] = [];
 
     // 3. Group tickets by attendee email so we can send one email per person
     const emailsToSend = new Map<string, { name: string, phone: string, tickets: any[] }>();
@@ -50,7 +50,7 @@ export async function fulfillOrder(orderId: string, tierId: string, attendees: {
     // 4. Generate tickets loop
     for (const attendee of attendees) {
       const ticketId = crypto.randomUUID();
-      const qrToken = generateQRToken(ticketId);
+      const qrToken = generatePermanentQRToken(ticketId);
 
       ticketInserts.push({
         id: ticketId,
@@ -63,10 +63,20 @@ export async function fulfillOrder(orderId: string, tierId: string, attendees: {
         status: 'active'
       });
 
+      // Generate base64 QR code image for instant inline email presentation
+      let qrImageBase64 = '';
+      try {
+        qrImageBase64 = await generateQRImage(qrToken);
+      } catch (qrErr) {
+        console.warn('[Fulfillment] Could not generate base64 QR image for ticket:', qrErr);
+      }
+
       const emailTicketData = {
         id: ticketId,
         tierName: tier.name,
-        price: tier.price
+        price: tier.price,
+        qrToken: qrToken,
+        qrImageBase64: qrImageBase64
       };
 
       if (!emailsToSend.has(attendee.email)) {
@@ -207,7 +217,7 @@ export const paymentsController = {
 
         // 4. Generate tickets and email buyer
         if (parsedMetadata && parsedMetadata.tier_id) {
-          let attendees = [];
+          let attendees: any[] = [];
           
           if (parsedMetadata.attendees) {
              attendees = typeof parsedMetadata.attendees === 'string' 
@@ -274,7 +284,12 @@ export const paymentsController = {
           .select('*, ticket_tiers(name, price)')
           .eq('order_id', order.id);
 
-        return success(res, { order, tickets }, 'Payment successfully verified via webhook!');
+        const processedTickets = (tickets || []).map((t: any) => ({
+          ...t,
+          qr_token: t.qr_token || generatePermanentQRToken(t.id)
+        }));
+
+        return success(res, { order, tickets: processedTickets }, 'Payment successfully verified via webhook!');
       }
 
       // 2. Fallback: Call Paystack API only if the webhook hasn't updated it yet
@@ -304,7 +319,7 @@ export const paymentsController = {
         }
 
         if (parsedMetadata && parsedMetadata.tier_id) {
-          let attendees = [];
+          let attendees: any[] = [];
           if (parsedMetadata.attendees) {
              attendees = typeof parsedMetadata.attendees === 'string' 
                ? JSON.parse(parsedMetadata.attendees) 
@@ -333,7 +348,12 @@ export const paymentsController = {
           .select('*, ticket_tiers(name, price)')
           .eq('order_id', order.id);
 
-        return success(res, { order: { ...order, paystack_status: 'success' }, tickets }, 'Payment verified and tickets generated!');
+        const processedTickets = (tickets || []).map((t: any) => ({
+          ...t,
+          qr_token: t.qr_token || generatePermanentQRToken(t.id)
+        }));
+
+        return success(res, { order: { ...order, paystack_status: 'success' }, tickets: processedTickets }, 'Payment verified and tickets generated!');
       } else {
         // Update order status to failed
         await supabase

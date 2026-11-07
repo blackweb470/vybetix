@@ -106,3 +106,46 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     });
   }
 }
+
+/**
+ * Optional authentication middleware:
+ * If an Authorization Bearer header is present and valid, attaches req.user.
+ * If missing, invalid, or expired, safely allows the request to continue as a guest (req.user = undefined).
+ */
+export async function optionalAuthMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token || token === 'null' || token === 'undefined') {
+      return next();
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return next();
+    }
+
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('role, is_banned')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (dbUser && !dbUser.is_banned) {
+      req.user = {
+        id: user.id,
+        email: user.email || '',
+        role: dbUser.role as 'buyer' | 'organizer' | 'admin' | 'gate_staff'
+      };
+    }
+
+    return next();
+  } catch (err) {
+    // Graceful fallback to guest mode on token failure
+    return next();
+  }
+}

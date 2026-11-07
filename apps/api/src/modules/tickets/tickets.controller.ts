@@ -1,13 +1,12 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { supabase } from '../../config/supabase';
 import { success, error } from '../../utils/response';
 import { AuthRequest } from '../../middleware/auth';
 import { paystackClient, paystackConfig } from '../../config/paystack';
-import { verifyQRToken, generateQRToken } from '../../utils/qrcode';
+import { verifyQRToken, generateQRToken, generatePermanentQRToken, generateQRImage } from '../../utils/qrcode';
 import { fulfillOrder } from '../payments/payments.controller';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { sendDeviceUnlockOTP } from '../../utils/mailer';
 
 // --- In-Memory Caching for Gate Staff Authorization ---
 // This reduces database queries drastically during rapid gate scanning by caching 
@@ -56,12 +55,83 @@ export const ticketsController = {
    */
   initCheckout: async (req: AuthRequest, res: Response) => {
     try {
-      if (!req.user) {
-        return error(res, 'Unauthorized', 'User session required', 401);
-      }
-
       const parsedData = checkoutSchema.parse(req.body);
-      const buyerId = req.user.id;
+
+      // Support both authenticated users and guest checkouts
+      let buyerId: string;
+      let buyerEmail: string;
+
+      if (req.user) {
+        buyerId = req.user.id;
+        buyerEmail = req.user.email;
+      } else {
+        // Guest checkout — resolve or provision from primary attendee
+        const primaryAttendee = parsedData.attendees[0];
+        if (!primaryAttendee || !primaryAttendee.email) {
+          return error(res, 'Guest checkout requires email', 'Primary attendee email is required for ticket delivery', 400);
+        }
+
+        buyerEmail = primaryAttendee.email.toLowerCase().trim();
+        const buyerName = primaryAttendee.name.trim();
+        const buyerPhone = primaryAttendee.phone?.trim() || '';
+
+        // Check if an existing account exists with this email
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id, email, is_banned')
+          .ilike('email', buyerEmail)
+          .maybeSingle();
+
+        if (existingUser) {
+          if (existingUser.is_banned) {
+            return error(res, 'Account suspended', 'This account has been banned from purchasing tickets', 403);
+          }
+          buyerId = existingUser.id;
+        } else {
+          // Provision guest account in Supabase auth and public.users
+          try {
+            const { data: newAuthUser } = await supabase.auth.admin.createUser({
+              email: buyerEmail,
+              email_confirm: true,
+              user_metadata: { full_name: buyerName }
+            });
+
+            if (newAuthUser?.user) {
+              buyerId = newAuthUser.user.id;
+              await supabase
+                .from('users')
+                .upsert({
+                  id: buyerId,
+                  email: buyerEmail,
+                  full_name: buyerName,
+                  phone: buyerPhone,
+                  role: 'buyer'
+                }, { onConflict: 'id' });
+            } else {
+              throw new Error('Could not create auth user');
+            }
+          } catch (provisionErr) {
+            // Fallback: standalone row in public.users
+            const fallbackId = crypto.randomUUID();
+            const { data: fallbackUser, error: fbErr } = await supabase
+              .from('users')
+              .insert({
+                id: fallbackId,
+                email: buyerEmail,
+                full_name: buyerName,
+                phone: buyerPhone,
+                role: 'buyer'
+              })
+              .select('id')
+              .single();
+
+            if (fbErr || !fallbackUser) {
+              return error(res, 'Guest checkout failed', 'Could not provision guest account for ticket delivery', 500);
+            }
+            buyerId = fallbackUser.id;
+          }
+        }
+      }
 
       // 1. Retrieve Ticket Tier Details
       const { data: tier, error: tierError } = await supabase
@@ -208,7 +278,7 @@ export const ticketsController = {
         method: 'POST',
         headers: paystackConfig.headers,
         body: JSON.stringify({
-          email: req.user.email, // Use buyer's email for the Paystack receipt
+          email: buyerEmail, // Use buyer's email for the Paystack receipt
           amount: totalAmount,
           reference: reference,
           callback_url: callbackUrl,
@@ -288,7 +358,7 @@ export const ticketsController = {
                 }
 
                 if (parsedMetadata && parsedMetadata.tier_id) {
-                  let attendees = [];
+                  let attendees: any[] = [];
                   if (parsedMetadata.attendees) {
                     attendees = typeof parsedMetadata.attendees === 'string'
                       ? JSON.parse(parsedMetadata.attendees)
@@ -388,46 +458,15 @@ export const ticketsController = {
       });
       const tickets = Array.from(allTicketsMap.values());
 
-      // Check device fingerprint binding
-      const processedTickets = await Promise.all(tickets.map(async (ticket: any) => {
-        if (ticket.status !== 'active') {
-          return ticket;
+      // Standard ticketing: every active ticket receives its official entry pass token (no device locking)
+      const processedTickets = tickets.map((ticket: any) => {
+        if (ticket.status === 'active') {
+          ticket.qr_token = ticket.qr_token || generatePermanentQRToken(ticket.id);
         }
-
-        const isHolder = ticket.holder_email?.toLowerCase() === req.user?.email?.toLowerCase();
-
-        // Bind ticket to the current device if it's the first time viewing AND they are the actual holder
-        if (isHolder && !ticket.device_fingerprint && deviceFingerprint) {
-          const { error: updateError } = await supabase
-            .from('tickets')
-            .update({
-              device_fingerprint: deviceFingerprint,
-              device_locked: true
-            })
-            .eq('id', ticket.id);
-
-          if (!updateError) {
-            ticket.device_fingerprint = deviceFingerprint;
-            ticket.device_locked = true;
-          }
-        }
-
-        // If the ticket is locked to a device, verify the fingerprint matches
-        if (ticket.device_locked && ticket.device_fingerprint && ticket.device_fingerprint !== deviceFingerprint) {
-          return {
-            ...ticket,
-            qr_token: null,
-            is_device_mismatch: true
-          };
-        }
-
-        // Generate a fresh token so it's valid immediately upon load
-        if (ticket.status === 'active' && (!ticket.device_locked || ticket.device_fingerprint === deviceFingerprint)) {
-          ticket.qr_token = generateQRToken(ticket.id);
-        }
-
+        ticket.is_device_mismatch = false;
+        ticket.device_locked = false;
         return ticket;
-      }));
+      });
 
       return success(res, processedTickets, 'Buyer tickets fetched successfully');
     } catch (err: any) {
@@ -645,129 +684,17 @@ export const ticketsController = {
   },
 
   /**
-   * Request device unlock OTP
+   * Request device unlock (No-op: device binding is disabled)
    */
   requestUnlock: async (req: AuthRequest, res: Response) => {
-    try {
-      if (!req.user) {
-        return error(res, 'Unauthorized', 'User session required', 401);
-      }
-
-      const { id } = req.params;
-
-      const { data: ticket, error: err } = await supabase
-        .from('tickets')
-        .select('*, ticket_tiers(events(title, event_date))')
-        .eq('id', id)
-        .single();
-
-      if (err || !ticket) {
-        return error(res, 'Not found', 'Ticket not found', 404);
-      }
-
-      if (ticket.holder_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
-        return error(res, 'Forbidden', 'Not authorized to unlock this ticket', 403);
-      }
-
-      // 1. Strict limit: Max 2 device changes
-      if (ticket.unlock_count >= 2) {
-        return error(res, 'Transfer Limit Exceeded', 'This ticket has reached the maximum allowed device transfers (2) to prevent fraud.', 403);
-      }
-
-      // 2. Event Day Lockdown: Prevent device changes 24 hours before event starts
-      const eventDate = new Date(ticket.ticket_tiers?.events?.event_date);
-      const timeUntilEvent = eventDate.getTime() - Date.now();
-      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
-      if (timeUntilEvent < TWENTY_FOUR_HOURS) {
-        return error(res, 'Event Day Lockdown Active', 'Device transfers are disabled within 24 hours of the event. Please visit the venue box office with your ID to regain access.', 403);
-      }
-
-      // Generate a 6-digit OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-      const { error: updateError } = await supabase
-        .from('tickets')
-        .update({ unlock_otp: otp, unlock_otp_expires_at: expiresAt })
-        .eq('id', id);
-
-      if (updateError) {
-        return error(res, 'Database error', 'Failed to generate OTP', 500);
-      }
-
-      const eventTitle = ticket.ticket_tiers?.events?.title || 'Event';
-      await sendDeviceUnlockOTP(ticket.holder_email, ticket.holder_name, otp, eventTitle);
-
-      return success(res, null, 'OTP sent successfully to your email');
-    } catch (err: any) {
-      console.error('Request unlock error:', err);
-      return error(res, 'Server error', err.message, 500);
-    }
+    return success(res, null, 'Device binding is disabled. Your ticket is accessible from any device.');
   },
 
   /**
-   * Verify device unlock OTP
+   * Verify device unlock (No-op: device binding is disabled)
    */
   verifyUnlock: async (req: AuthRequest, res: Response) => {
-    try {
-      if (!req.user) {
-        return error(res, 'Unauthorized', 'User session required', 401);
-      }
-
-      const { id } = req.params;
-      const { otp } = req.body;
-      const newFingerprint = req.headers['x-device-fingerprint'] as string;
-
-      if (!otp) {
-        return error(res, 'Validation error', 'OTP is required', 400);
-      }
-      if (!newFingerprint) {
-        return error(res, 'Validation error', 'Missing device fingerprint header', 400);
-      }
-
-      const { data: ticket, error: err } = await supabase
-        .from('tickets')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (err || !ticket) {
-        return error(res, 'Not found', 'Ticket not found', 404);
-      }
-
-      if (ticket.holder_email?.toLowerCase() !== req.user.email?.toLowerCase()) {
-        return error(res, 'Forbidden', 'Not authorized to unlock this ticket', 403);
-      }
-
-      if (ticket.unlock_otp !== otp) {
-        return error(res, 'Invalid OTP', 'The OTP provided is incorrect', 400);
-      }
-
-      if (new Date(ticket.unlock_otp_expires_at) < new Date()) {
-        return error(res, 'Expired OTP', 'The OTP provided has expired', 400);
-      }
-
-      // Update the fingerprint, clear OTP, and increment unlock count
-      const { error: updateError } = await supabase
-        .from('tickets')
-        .update({
-          device_fingerprint: newFingerprint,
-          unlock_otp: null,
-          unlock_otp_expires_at: null,
-          unlock_count: (ticket.unlock_count || 0) + 1
-        })
-        .eq('id', id);
-
-      if (updateError) {
-        return error(res, 'Database error', 'Failed to unlock ticket', 500);
-      }
-
-      return success(res, null, 'Device unlocked successfully');
-    } catch (err: any) {
-      console.error('Verify unlock error:', err);
-      return error(res, 'Server error', err.message, 500);
-    }
+    return success(res, null, 'Device binding is disabled. Your ticket is accessible from any device.');
   },
 
   /**
@@ -780,7 +707,6 @@ export const ticketsController = {
       }
 
       const { id } = req.params;
-      const deviceFingerprint = req.headers['x-device-fingerprint'] as string;
 
       const { data: ticket, error: err } = await supabase
         .from('tickets')
@@ -796,15 +722,98 @@ export const ticketsController = {
         return error(res, 'Forbidden', 'Not authorized to view this ticket', 403);
       }
 
-      if (ticket.device_locked && ticket.device_fingerprint && ticket.device_fingerprint !== deviceFingerprint) {
-        return error(res, 'Device mismatch', 'Ticket locked to another device', 403);
-      }
-
-      const token = generateQRToken(ticket.id);
+      const token = generatePermanentQRToken(ticket.id);
       return success(res, { qr_token: token }, 'QR token refreshed');
     } catch (err: any) {
       console.error('Refresh QR error:', err);
       return error(res, 'Server error', err.message, 500);
+    }
+  },
+
+  /**
+   * Retrieves ticket details for public guest pass viewing.
+   * Allows buyers to view, save, or present their ticket at the gate without signing in.
+   */
+  getPublicTicket: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { token } = req.query;
+
+      if (!id) {
+        return error(res, 'Ticket ID required', 'Please provide a valid ticket ID', 400);
+      }
+
+      // 1. Fetch ticket from database with tier and event information
+      const { data: ticket, error: ticketErr } = await supabase
+        .from('tickets')
+        .select(`
+          id,
+          holder_name,
+          holder_email,
+          holder_phone,
+          status,
+          scanned_at,
+          created_at,
+          qr_token,
+          ticket_tiers:ticket_tiers!inner(
+            name,
+            price,
+            event_id,
+            events:events(
+              id,
+              title,
+              venue,
+              city,
+              event_date,
+              end_date,
+              cover_image_url
+            )
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (ticketErr || !ticket) {
+        return error(res, 'Ticket not found', 'This ticket does not exist or has been removed', 404);
+      }
+
+      // 2. Validate cryptographic seal if provided
+      if (token) {
+        const decoded = verifyQRToken(String(token));
+        if (!decoded || decoded.ticketId !== id) {
+          return error(res, 'Invalid ticket pass', 'Cryptographic verification failed for this ticket link', 403);
+        }
+      }
+
+      const tierObj: any = (ticket as any).ticket_tiers;
+      const eventObj: any = Array.isArray(tierObj?.events) ? tierObj.events[0] : tierObj?.events;
+
+      // Generate a sealed QR code image for this ticket
+      const passToken = ticket.qr_token || generatePermanentQRToken(ticket.id);
+      const qrDataUrl = await generateQRImage(passToken);
+
+      return success(res, {
+        id: ticket.id,
+        holderName: ticket.holder_name,
+        holderEmail: ticket.holder_email,
+        status: ticket.status,
+        scannedAt: ticket.scanned_at,
+        tierName: tierObj?.name,
+        price: tierObj?.price,
+        event: {
+          title: eventObj?.title,
+          venue: eventObj?.venue,
+          city: eventObj?.city,
+          eventDate: eventObj?.event_date,
+          endDate: eventObj?.end_date,
+          coverImageUrl: eventObj?.cover_image_url
+        },
+        qrImage: qrDataUrl,
+        passToken: passToken
+      }, 'Ticket pass retrieved successfully');
+    } catch (err: any) {
+      console.error('Get public ticket error:', err);
+      return error(res, 'Server error loading ticket pass', err.message, 500);
     }
   }
 };

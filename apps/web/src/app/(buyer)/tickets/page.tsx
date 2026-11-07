@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useMemo } from 'react';
 import { useMyTickets } from '../../../hooks/useTickets';
 import { useAuth } from '../../../hooks/useAuth';

@@ -10,7 +10,7 @@ import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
-import { Minus, Plus, CreditCard, User, Sparkles, Disc, ShieldCheck } from 'lucide-react';
+import { Minus, Plus, CreditCard, Disc, ShieldCheck } from 'lucide-react';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -163,8 +163,12 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
   };
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title="Ticket Checkout">
-      <form onSubmit={handleCheckout} className="flex flex-col gap-5 font-['DM_Sans',sans-serif] text-[#161713] bg-[#f4f1e9] p-2">
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      className="!bg-[#f4f1e9] !border-2 !border-[#161713] !text-[#161713] !p-6 shadow-[8px_8px_0px_#161713] rounded-3xl"
+    >
+      <form onSubmit={handleCheckout} className="flex flex-col gap-5 font-['DM_Sans',sans-serif] text-[#161713] bg-[#f4f1e9]">
 
         {/* Modal Header */}
         <div className="border-b-2 border-[#161713] pb-3">
@@ -196,11 +200,10 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
                     setSelectedTierId(tier.id);
                     handleQuantityChange(1);
                   }}
-                  className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${
-                    isSelected
+                  className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${isSelected
                       ? 'border-[#161713] bg-[#ffffff] shadow-[3px_3px_0px_#ff5a24]'
                       : 'border-[#d5d2c6] bg-[#e9e6dd] hover:border-[#161713]'
-                  }`}
+                    }`}
                 >
                   <div>
                     <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-lg uppercase tracking-tight text-[#161713] block">

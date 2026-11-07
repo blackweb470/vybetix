@@ -168,7 +168,7 @@ export const authController = {
         const { bankCode: parsedBankCode, bankName: parsedBankName } = resolveBankCode(parsedBody.bank_name);
 
         // Automatically create paystack subaccount if bank details are supplied
-        let subaccountCode = null;
+        let subaccountCode: string | null = null;
         const businessName = parsedBody.business_name || `${parsedBody.fullName} Events`;
         if (businessName && parsedBankCode && parsedBody.account_number) {
           try {

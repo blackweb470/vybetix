@@ -388,8 +388,8 @@ export async function sendTicketConfirmationEmail(params: TicketConfirmationEmai
       to: [email],
       subject: `🎟 Your pass for ${eventTitle} is confirmed!`,
       html,
-      ...(attachments.length > 0 ? { attachments } : {}),
-    });
+      ...(attachments.length > 0 ? { attachments: attachments as any } : {}),
+    } as any);
     return { success: true, data: response };
   } catch (err) {
     console.error('[Mailer] Resend failure:', err);
@@ -460,7 +460,7 @@ export async function sendEventReminderEmail(
     to: [email],
     subject: `⏰ Reminder: ${eventTitle} is tomorrow — have your pass ready!`,
     html,
-  });
+  } as any);
 }
 
 /**
@@ -516,7 +516,7 @@ export async function sendDeviceUnlockOTP(email: string, name: string, otp: stri
     to: [email],
     subject: `🔐 Your Vybetix unlock code — ${eventTitle}`,
     html,
-  });
+  } as any);
 }
 
 

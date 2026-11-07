@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { useEvents } from '../hooks/useEvents';
 import { useAuth } from '../hooks/useAuth';
 import { formatNaira, formatDate, formatTime } from '../lib/utils';
 import { EventDetail } from '../types';
 
-const CheckoutModal = dynamic(() => import('../components/tickets/CheckoutModal'), {
+const CheckoutModal = nextDynamic(() => import('../components/tickets/CheckoutModal'), {
   ssr: false,
 });
 
