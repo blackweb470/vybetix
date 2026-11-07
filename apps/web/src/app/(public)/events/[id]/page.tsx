@@ -3,50 +3,18 @@
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEvent } from '../../../../hooks/useEvents';
-import { Badge } from '../../../../components/ui/badge';
 import CheckoutModal from '../../../../components/tickets/CheckoutModal';
 import { formatNaira, formatDate, formatTime } from '../../../../lib/utils';
-import { useAuth } from '../../../../hooks/useAuth';
 import { useToast } from '../../../../components/ui/toast';
 import {
-  Calendar, MapPin, ArrowLeft, ShieldAlert, LogIn, Disc, GraduationCap,
-  ShieldCheck, Clock, Tag, ChevronRight, Users, Share2, BanIcon
+  Calendar, MapPin, ArrowLeft, Disc, GraduationCap,
+  ShieldCheck, Clock, Share2, BanIcon, ArrowUpRight, Sparkles, Ticket
 } from 'lucide-react';
-
-const CAT_GRADIENTS: Record<string, string> = {
-  music: 'from-[#E8441A] to-[#ff7d59]',
-  sports: 'from-amber-500 to-orange-400',
-  tech: 'from-blue-600 to-cyan-500',
-  comedy: 'from-purple-600 to-pink-500',
-  church: 'from-emerald-600 to-teal-500',
-  campus: 'from-indigo-600 to-purple-500',
-  food: 'from-rose-600 to-amber-500',
-  other: 'from-zinc-600 to-zinc-400',
-  Concerts: 'from-[#E8441A] to-[#ff7d59]',
-  Sports: 'from-amber-500 to-orange-400',
-  Theater: 'from-purple-600 to-pink-500',
-  Festivals: 'from-cyan-500 to-blue-500',
-};
-
-const getCategoryLabel = (category: string, customCategory?: string) => {
-  if (category === 'other' && customCategory) return customCategory;
-  const labels: Record<string, string> = {
-    music: 'Music & Concerts',
-    sports: 'Sports & Fitness',
-    tech: 'Tech & Science',
-    comedy: 'Comedy & Drama',
-    church: 'Religion & Church',
-    campus: 'Campus Event',
-    food: 'Food & Drinks',
-    other: 'Other / Custom',
-  };
-  return labels[category] || category;
-};
+import Link from 'next/link';
 
 export default function EventDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
 
   const id = params.id as string;
@@ -55,25 +23,29 @@ export default function EventDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-[#08080C] py-32 gap-4">
-        <Disc className="h-10 w-10 text-[#E8441A] animate-spin" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Loading Event...</span>
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#161713] py-32 gap-4 min-h-screen text-[#f4f1e9] font-['DM_Sans',sans-serif]">
+        <Disc className="h-10 w-10 text-[#ff5a24] animate-spin" />
+        <span className="text-xs font-black uppercase tracking-widest text-[#a7a89e]">Loading Event Details...</span>
       </div>
     );
   }
 
   if (error || !event) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-[#08080C] px-6 py-32 text-center gap-4">
-        <ShieldAlert className="h-12 w-12 text-red-500" />
-        <h2 className="text-xl font-black uppercase tracking-tight text-white font-syne">Event Not Found</h2>
-        <p className="text-sm text-zinc-500 max-w-sm">This event may have been removed or does not exist.</p>
-        <button
-          onClick={() => window.location.href = '/events'}
-          className="mt-2 px-6 py-2.5 rounded-xl bg-[#E8441A] text-white text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all"
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#161713] px-6 py-32 text-center gap-4 min-h-screen text-[#f4f1e9] font-['DM_Sans',sans-serif]">
+        <div className="w-16 h-16 rounded-2xl bg-[#ff5a24]/10 border-2 border-[#ff5a24] flex items-center justify-center text-[#ff5a24]">
+          <BanIcon className="h-8 w-8" />
+        </div>
+        <h2 className="text-3xl font-black uppercase tracking-tight text-[#f4f1e9] font-['Barlow_Condensed',Impact,sans-serif]">
+          Event Not Found
+        </h2>
+        <p className="text-xs text-[#a7a89e] max-w-sm">This event may have been removed or does not exist.</p>
+        <Link
+          href="/events"
+          className="vyb-btn rounded-xl !py-3 !px-6 !text-xs !gap-2"
         >
-          Back to Events
-        </button>
+          Back to Events <span className="vyb-arrow">↗</span>
+        </Link>
       </div>
     );
   }
@@ -85,9 +57,7 @@ export default function EventDetailPage() {
   const startingPrice = activeTiers.length > 0 && hasPaidTier
     ? Math.min(...activeTiers.filter(t => t.price > 0).map(t => t.price))
     : 0;
-  const gradient = CAT_GRADIENTS[event.category] || 'from-[#E8441A] to-[#ff7d59]';
 
-  // Determine if the event has ended
   const isEnded: boolean = event.is_ended ||
     (event.end_date ? new Date(event.end_date) < new Date() : false);
 
@@ -98,144 +68,132 @@ export default function EventDetailPage() {
   };
 
   const handleBuyTickets = () => {
-    if (isEnded) return; // already blocked by the UI, but guard anyway
-    if (!isAuthenticated) {
-      toast({ title: 'Sign in required', description: 'Please log in to purchase tickets', variant: 'destructive' });
-      window.location.href = `/login?redirect=${encodeURIComponent(`/events/${id}`)}`;
-      return;
-    }
-    if (user?.role !== 'buyer' && user?.role !== 'gate_staff') {
-      toast({ title: 'Buyer account required', description: 'Only Buyer or Gate Staff accounts can purchase tickets.', variant: 'destructive' });
-      return;
-    }
-    if (event.is_university_only && user?.email && !user.email.endsWith('.edu.ng')) {
-      toast({ title: 'Campus access only', description: 'This event is restricted to valid university email addresses (.edu.ng)', variant: 'destructive' });
-      return;
-    }
+    if (isEnded) return;
     setIsCheckoutOpen(true);
   };
 
+  const eventDateObj = event.event_date ? new Date(event.event_date) : null;
+  const monthName = eventDateObj ? eventDateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase() : 'TBD';
+  const dayNumber = eventDateObj ? eventDateObj.getDate() : '--';
+
   return (
-    <div className="w-full bg-[#08080C] pb-28 font-outfit min-h-screen text-zinc-100">
+    <div className="w-full bg-[#161713] pb-28 font-['DM_Sans',sans-serif] min-h-screen text-[#f4f1e9] selection:bg-[#ff5a24] selection:text-[#161713]">
 
-      {/* HERO BANNER */}
-      <div className="relative w-full h-[50vh] min-h-[320px] max-h-[500px] overflow-hidden">
+      {/* TOP HERO COVER */}
+      <div className="relative w-full h-[45vh] min-h-[340px] max-h-[500px] overflow-hidden bg-[#161713]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={coverImage} alt={event.title} className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#08080C] via-[#08080C]/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#08080C]/30 to-transparent" />
+        <img src={coverImage} alt={event.title} className="h-full w-full object-cover opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#161713] via-[#161713]/50 to-transparent" />
 
-        {/* Back and Share buttons overlaid on hero */}
-        <div className="absolute top-6 left-6 flex items-center gap-3">
-          <button
-            onClick={() => window.location.href = '/events'}
-            className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/80 hover:text-white bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 transition-all hover:bg-black/50"
+        {/* Back and Share buttons */}
+        <div className="absolute top-6 left-6 right-6 flex items-center justify-between max-w-7xl mx-auto">
+          <Link
+            href="/events"
+            className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[#f4f1e9] bg-[#161713]/80 hover:bg-[#161713] backdrop-blur-md px-4 py-2.5 rounded-full border border-[#393a32] transition-all"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5 text-[#ff5a24]" />
             All Events
-          </button>
+          </Link>
           <button
             onClick={handleShare}
-            className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/80 hover:text-white bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 transition-all hover:bg-black/50"
+            className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[#f4f1e9] bg-[#161713]/80 hover:bg-[#161713] backdrop-blur-md px-4 py-2.5 rounded-full border border-[#393a32] transition-all"
           >
-            <Share2 className="h-3.5 w-3.5" />
+            <Share2 className="h-3.5 w-3.5 text-[#c4db59]" />
             Share
           </button>
         </div>
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="mx-auto max-w-6xl px-6 -mt-20 relative z-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 -mt-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start">
 
-          {/* LEFT — Event Info */}
+          {/* LEFT 2 COLUMNS — Event Details */}
           <div className="lg:col-span-2 flex flex-col gap-8">
 
-            {/* Title block */}
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${gradient}`}>
-                  {getCategoryLabel(event.category, event.custom_category)}
+            {/* Title & Date Bar */}
+            <div className="bg-[#20211a] border-2 border-[#393a32] rounded-3xl p-6 sm:p-8 shadow-[6px_6px_0px_#161713]">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-[#ff5a24] text-[#161713]">
+                  {event.category || 'LIVE VYBE'}
                 </span>
                 {event.is_university_only && (
-                  <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest text-white uppercase bg-purple-600/90 border border-purple-500/25 flex items-center gap-1">
+                  <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-[#f7a6c5] text-[#161713] flex items-center gap-1">
                     <GraduationCap className="h-3 w-3" /> Campus Exclusive
                   </span>
                 )}
               </div>
 
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white font-syne uppercase tracking-tight leading-[1.05]">
+              <h1 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-4xl sm:text-6xl text-[#f4f1e9] tracking-tight leading-[0.95]">
                 {event.title}
               </h1>
 
-              {/* Ended banner */}
-              {isEnded && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-950/30 border border-amber-700/40 mt-1">
-                  <BanIcon className="h-4 w-4 text-amber-400 shrink-0" />
-                  <div>
-                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">This Event Has Ended</p>
-                    <p className="text-xs text-amber-300/60 mt-0.5">Ticket sales are permanently closed. You can still view event details below.</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-400 pt-1">
-                <span className="flex items-center gap-1.5 font-bold">
-                  <Calendar className="h-3.5 w-3.5 text-[#E8441A]" />
+              {/* Date, Time, Venue Pills */}
+              <div className="flex flex-wrap items-center gap-4 text-xs text-[#a7a89e] mt-5 pt-5 border-t border-[#393a32]">
+                <span className="flex items-center gap-1.5 font-bold text-[#f4f1e9]">
+                  <Calendar className="h-4 w-4 text-[#ff5a24]" />
                   {formatDate(event.event_date)}
                 </span>
-                <span className="flex items-center gap-1.5 font-bold">
-                  <Clock className="h-3.5 w-3.5 text-[#E8441A]" />
+                <span className="flex items-center gap-1.5 font-bold text-[#f4f1e9]">
+                  <Clock className="h-4 w-4 text-[#c4db59]" />
                   {formatTime(event.event_date)}
                 </span>
-                <span className="flex items-center gap-1.5 font-bold">
-                  <MapPin className="h-3.5 w-3.5 text-[#E8441A]" />
+                <span className="flex items-center gap-1.5 font-bold text-[#f4f1e9]">
+                  <MapPin className="h-4 w-4 text-[#f7a6c5]" />
                   {event.venue}, {event.city}
                 </span>
               </div>
             </div>
 
-            {/* Description */}
-            <div className="border-t border-zinc-900 pt-6">
-              <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">About This Event</h3>
-              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-line">{event.description}</p>
+            {/* About / Description */}
+            <div className="bg-[#20211a] border-2 border-[#393a32] rounded-3xl p-6 sm:p-8">
+              <h3 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-2xl tracking-tight text-[#f4f1e9] mb-3">
+                About The Vybe
+              </h3>
+              <p className="text-sm text-[#a7a89e] leading-relaxed whitespace-pre-line">
+                {event.description}
+              </p>
             </div>
 
-            {/* Ticket Tiers table */}
-            <div className="border-t border-zinc-900 pt-6">
-              <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Available Ticket Tiers</h3>
+            {/* Ticket Tiers (Styled like mini stubs) */}
+            <div className="bg-[#20211a] border-2 border-[#393a32] rounded-3xl p-6 sm:p-8">
+              <h3 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-2xl tracking-tight text-[#f4f1e9] mb-4">
+                Admission Passes & Tiers
+              </h3>
+
               {isEnded ? (
-                <div className="flex items-center gap-3 p-4 rounded-2xl border border-amber-900/30 bg-amber-950/10">
-                  <BanIcon className="h-5 w-5 text-amber-500 shrink-0" />
-                  <div>
-                    <p className="text-sm font-black text-amber-400 uppercase tracking-wide">Sales Closed</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">This event has ended. Ticket purchases are no longer available.</p>
-                  </div>
+                <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase">
+                  This event has concluded. Passes are no longer available for purchase.
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
                   {activeTiers.map((tier) => {
                     const soldCount = tier.sold || 0;
-                    const remaining = tier.quantity - soldCount;
                     const isSoldOut = soldCount >= tier.quantity;
-                    const pctSold = tier.quantity > 0 ? Math.min(100, Math.round((soldCount / tier.quantity) * 100)) : 0;
                     return (
-                      <div key={tier.id} className="p-4 rounded-2xl border border-zinc-900 bg-zinc-950/40 flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-black text-white uppercase tracking-wide">{tier.name}</span>
-                            <span className="text-xs text-zinc-500">{tier.description || 'Standard entry gate access'}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-base font-black text-[#E8441A]">
-                              {tier.price === 0 ? 'FREE' : formatNaira(tier.price)}
+                      <div
+                        key={tier.id}
+                        className="p-4 rounded-2xl bg-[#f4f1e9] text-[#161713] border-2 border-[#161713] shadow-[4px_4px_0px_#161713] flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-xl uppercase tracking-tight text-[#161713]">
+                              {tier.name}
                             </span>
-                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${isSoldOut ? 'bg-red-950/40 text-red-400 border border-red-900/40' : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40'}`}>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${isSoldOut ? 'bg-red-500 text-white' : 'bg-[#c4db59] text-[#161713]'}`}>
                               {isSoldOut ? 'Sold Out' : 'Available'}
                             </span>
                           </div>
+                          <p className="text-[11px] text-[#606257] mt-0.5">
+                            {tier.description || 'Full venue gate access and admission'}
+                          </p>
                         </div>
 
+                        <div className="text-right">
+                          <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-2xl text-[#161713]">
+                            {tier.price === 0 ? 'FREE' : formatNaira(tier.price)}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -243,101 +201,86 @@ export default function EventDetailPage() {
               )}
             </div>
 
-            {/* Trust row */}
-            <div className="border-t border-zinc-900 pt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                { icon: ShieldCheck, color: 'text-[#E8441A]', label: 'HMAC-SHA256 Sealed Entry' },
-                { icon: Tag, color: 'text-amber-400', label: 'Paystack Secured Checkout' },
-                { icon: Users, color: 'text-purple-400', label: 'Verified Organizer' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2.5 p-3 rounded-xl bg-zinc-950/30 border border-zinc-900">
-                  <item.icon className={`h-4 w-4 shrink-0 ${item.color}`} />
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-tight">{item.label}</span>
-                </div>
-              ))}
+            {/* Guaranteed Trust Stamp */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-[#20211a] border border-[#393a32] flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-[#c4db59] shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider text-[#a7a89e]">Instant Gate QR</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#20211a] border border-[#393a32] flex items-center gap-3">
+                <Sparkles className="h-5 w-5 text-[#ff5a24] shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider text-[#a7a89e]">No Login Required</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#20211a] border border-[#393a32] flex items-center gap-3">
+                <Ticket className="h-5 w-5 text-[#f7a6c5] shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider text-[#a7a89e]">Pass In Email</span>
+              </div>
             </div>
 
           </div>
 
-          {/* RIGHT — Sticky Checkout Card */}
+          {/* RIGHT COLUMN — Sticky Ticket Purchase Box */}
           <div className="flex flex-col gap-4 lg:sticky lg:top-24">
-            <div className="rounded-2xl border border-zinc-900 bg-zinc-950/60 backdrop-blur-xl p-6 flex flex-col gap-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+            <div className="bg-[#f4f1e9] text-[#161713] rounded-3xl border-2 border-[#161713] shadow-[8px_8px_0px_#161713] p-6 sm:p-7 flex flex-col gap-5">
 
-              {/* Price */}
-              <div className="flex items-end justify-between pb-4 border-b border-zinc-900">
+              {/* Header inside ticket box */}
+              <div className="flex items-center justify-between pb-4 border-b-2 border-[#161713]">
                 <div>
-                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Tickets From</p>
-                  <p className="text-2xl font-black text-white font-syne mt-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-[#606257]">Passes From</span>
+                  <div className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-3xl uppercase tracking-tight text-[#161713] leading-none mt-0.5">
                     {hasFreeTier && hasPaidTier
-                      ? 'Free & Paid Options'
+                      ? 'Free & Paid'
                       : (hasPaidTier ? formatNaira(startingPrice) : 'FREE ENTRY')}
-                  </p>
+                  </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest text-white uppercase bg-gradient-to-r ${gradient}`}>
-                  {getCategoryLabel(event.category, event.custom_category)}
+
+                <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded bg-[#ff5a24] text-[#161713]">
+                  ADMIT ONE
                 </span>
               </div>
 
-              {/* Date & Venue */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A] shrink-0">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Date & Time</p>
-                    <p className="text-sm font-bold text-white mt-0.5">{formatDate(event.event_date)}</p>
-                    <p className="text-xs text-zinc-500">Starts at {formatTime(event.event_date)}</p>
-                  </div>
+              {/* Date Box */}
+              <div className="bg-[#e7e4db] rounded-2xl p-4 border border-[#d5d2c6] space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#727365] uppercase">Date</span>
+                  <span className="font-black text-[#161713]">{formatDate(event.event_date)}</span>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#E8441A]/10 border border-[#E8441A]/20 flex items-center justify-center text-[#E8441A] shrink-0">
-                    <MapPin className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Venue</p>
-                    <p className="text-sm font-bold text-white mt-0.5">{event.venue}</p>
-                    <p className="text-xs text-zinc-500">{event.city}, Nigeria</p>
-                  </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#727365] uppercase">Time</span>
+                  <span className="font-black text-[#161713]">{formatTime(event.event_date)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#727365] uppercase">Location</span>
+                  <span className="font-black text-[#161713] truncate max-w-[150px]">{event.venue}</span>
                 </div>
               </div>
 
-              {/* Campus alert */}
-              {event.is_university_only && (
-                <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-800/30 flex gap-2.5 items-start">
-                  <GraduationCap className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Campus Only Event</p>
-                    <p className="text-xs text-purple-300/70 mt-1 leading-relaxed">Requires a valid .edu.ng university email to purchase tickets.</p>
-                  </div>
-                </div>
-              )}
+              {/* Tear line with barcode */}
+              <div className="vyb-tear my-0">
+                <div className="vyb-barcode" />
+                <span className="text-[7px] font-mono font-bold tracking-widest text-[#737568]">GATE PASS</span>
+              </div>
 
-              {/* CTA Button */}
+              {/* Buy Button */}
               {isEnded ? (
-                <div className="flex flex-col gap-2">
-                  <div className="h-12 w-full rounded-xl bg-zinc-900 border border-amber-900/30 text-amber-500 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 cursor-not-allowed">
-                    <BanIcon className="h-4 w-4" />
-                    Sales Closed
-                  </div>
-                  <p className="text-center text-[10px] text-zinc-600">This event has ended. No tickets can be purchased.</p>
-                </div>
+                <button
+                  disabled
+                  className="w-full py-4 rounded-xl bg-[#20211a] text-[#737568] text-xs font-black uppercase tracking-wider cursor-not-allowed"
+                >
+                  Sales Closed
+                </button>
               ) : (
                 <button
                   onClick={handleBuyTickets}
-                  className="h-12 w-full rounded-xl bg-[#E8441A] hover:brightness-110 active:scale-[0.98] transition-all text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#E8441A]/20"
+                  className="vyb-btn rounded-xl !w-full !py-4 !text-xs !gap-2 shadow-[3px_3px_0px_#161713]"
                 >
-                  {isAuthenticated ? (
-                    <><span>Get Tickets</span><ChevronRight className="h-4 w-4" /></>
-                  ) : (
-                    <><LogIn className="h-4 w-4" /><span>Sign In to Buy</span></>
-                  )}
+                  GET TICKETS NOW <span className="vyb-arrow">↗</span>
                 </button>
               )}
 
-              {!isAuthenticated && !isEnded && (
-                <p className="text-center text-[10px] text-zinc-600 -mt-2">You must be signed in to purchase</p>
-              )}
+              <p className="text-center text-[10px] text-[#606257] font-medium -mt-2">
+                Instant delivery to email ✳ Print or show on phone
+              </p>
 
             </div>
           </div>

@@ -8,8 +8,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../components/ui/toast';
 import { api } from '../../../lib/api';
 import Link from 'next/link';
-import { Disc, UserPlus, Ticket, Building2, CheckCircle2, AlertCircle, Eye, EyeOff, Mail } from 'lucide-react';
-import Image from 'next/image';
+import { Disc, UserPlus, Ticket, Building2, CheckCircle2, AlertCircle, Eye, EyeOff, Mail, Sparkles } from 'lucide-react';
 import { SearchableSelect } from '../../../components/ui/searchable-select';
 
 interface Bank {
@@ -45,6 +44,7 @@ function RegisterContent() {
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [resolvingAccount, setResolvingAccount] = useState(false);
   const [accountError, setAccountError] = useState('');
+  const [successData, setSuccessData] = useState<{ targetUrl: string; countdown: number } | null>(null);
 
   useEffect(() => {
     if (role === 'organizer') {
@@ -80,52 +80,41 @@ function RegisterContent() {
           if (data.success && data.data.account_name) {
             setAccountName(data.data.account_name);
           } else {
-            setAccountError('Could not verify account details');
+            setAccountError('Account could not be verified');
           }
         } catch (error: any) {
-          console.error("Error resolving account:", error);
-          setAccountError(error.response?.data?.message || 'Could not verify account details');
+          setAccountError(error.response?.data?.message || 'Invalid account details');
         } finally {
           setResolvingAccount(false);
         }
-      } else {
-        setAccountName('');
-        setAccountError('');
       }
     };
-    
-    const timeoutId = setTimeout(() => {
-      resolveAccount();
-    }, 500);
-    
-    return () => clearTimeout(timeoutId);
+    resolveAccount();
   }, [bankName, accountNumber]);
 
-  const [successData, setSuccessData] = useState<{ targetUrl: string, countdown: number } | null>(null);
-
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     if (successData && successData.countdown > 0) {
-      const timer = setTimeout(() => {
-        setSuccessData({ ...successData, countdown: successData.countdown - 1 });
+      timer = setTimeout(() => {
+        setSuccessData(prev => prev ? { ...prev, countdown: prev.countdown - 1 } : null);
       }, 1000);
-      return () => clearTimeout(timer);
     } else if (successData && successData.countdown === 0) {
       window.location.href = successData.targetUrl;
     }
+    return () => clearTimeout(timer);
   }, [successData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !fullName || !phone || !password || !confirmPassword) {
-      toast({ title: 'Missing details', description: 'Please complete all basic profile info including password confirmation', variant: 'destructive' });
+    if (!email || !password || !fullName || !phone) {
+      toast({ title: 'Missing details', description: 'Please complete all required fields', variant: 'destructive' });
       return;
     }
     if (password !== confirmPassword) {
-      toast({ title: 'Passwords do not match', description: 'Please ensure both passwords are exactly the same', variant: 'destructive' });
+      toast({ title: 'Passwords do not match', description: 'Please check your passwords', variant: 'destructive' });
       return;
     }
 
-    // Auto-format phone number to include +234
     let formattedPhone = phone.trim();
     if (formattedPhone.startsWith('0')) {
       formattedPhone = '+234' + formattedPhone.slice(1);
@@ -134,253 +123,230 @@ function RegisterContent() {
     }
 
     if (!/^\+234[789][01]\d{8}$/.test(formattedPhone)) {
-      toast({ title: 'Invalid phone', description: 'Phone must be a valid Nigerian number (e.g. 08031234567 or +234...)', variant: 'destructive' });
+      toast({ title: 'Invalid phone', description: 'Phone must be a valid Nigerian number', variant: 'destructive' });
       return;
     }
+
     if (role === 'organizer' && (!businessName || !bankName || !accountNumber || !accountName)) {
-      toast({ title: 'Banking info required', description: 'Please complete all business and bank details', variant: 'destructive' });
+      toast({ title: 'Banking info required', description: 'Please complete business and bank details', variant: 'destructive' });
       return;
     }
+
     try {
       const payload = {
         email, password, fullName, phone: formattedPhone, role,
         ...(role === 'organizer' ? { business_name: businessName, bank_name: bankName, account_number: accountNumber, account_name: accountName } : {})
       };
-      const session = await register(payload);
+      await register(payload);
       setSuccessData({ targetUrl: '/login', countdown: 5 });
     } catch (err: any) {
       toast({ title: 'Signup failed', description: err.response?.data?.message || err.message || 'Email might already be registered', variant: 'destructive' });
     }
   };
 
-  const inputCls = "h-11 w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 text-sm text-zinc-100 placeholder-zinc-600 focus:border-[#E8441A] focus:outline-none focus:ring-2 focus:ring-[#E8441A]/20 transition-all";
+  const inputCls = "w-full bg-[#ffffff] border-2 border-[#161713] rounded-xl px-4 py-2.5 text-xs text-[#161713] font-medium placeholder-[#a7a89e] focus:outline-none focus:border-[#ff5a24]";
 
   return (
-    <div className="flex-1 flex min-h-screen bg-[#08080C] font-outfit">
+    <div className="min-h-screen bg-[#161713] text-[#161713] font-['DM_Sans',sans-serif] flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-[#ff5a24] selection:text-[#161713] py-12">
+
+      {/* Brand Logo */}
+      <Link href="/" className="mb-6 flex items-center">
+        <span className="text-3xl font-black tracking-tight text-[#f4f1e9] uppercase">
+          vybetix<i className="not-italic text-[#ff5a24] ml-0.5">✳</i>
+        </span>
+      </Link>
 
       {/* SUCCESS POPUP MODAL */}
       {successData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 transition-all duration-500">
-          <div className="bg-zinc-950 border border-zinc-800 p-8 rounded-3xl max-w-sm w-full flex flex-col items-center text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-            {/* Background glowing effect */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-blue-500/20 blur-[60px] pointer-events-none rounded-full" />
-            
-            <div className="h-16 w-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-6 relative z-10">
-              <Mail className="h-8 w-8 text-blue-500" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#f4f1e9] border-2 border-[#161713] p-8 rounded-3xl max-w-sm w-full flex flex-col items-center text-center shadow-[8px_8px_0px_#ff5a24]">
+            <div className="h-16 w-16 bg-[#c4db59] border-2 border-[#161713] rounded-2xl flex items-center justify-center mb-4">
+              <Sparkles className="h-8 w-8 text-[#161713]" />
             </div>
-            
-            <h3 className="text-2xl font-black text-white font-syne mb-2 relative z-10">Verify Your Email</h3>
-            <p className="text-zinc-400 text-sm mb-6 relative z-10">
-              We've sent a verification link to <span className="text-white font-bold">{email}</span>. 
-              Please check your inbox (and spam folder) to verify your account before continuing.
+            <h3 className="text-3xl font-black font-['Barlow_Condensed',Impact,sans-serif] uppercase text-[#161713] mb-2">
+              VERIFY YOUR EMAIL
+            </h3>
+            <p className="text-xs text-[#606257] mb-6">
+              A verification link was sent to <strong>{email}</strong>. Check your inbox to activate your account.
             </p>
-            
-            <div className="w-full bg-zinc-900 rounded-xl p-4 flex flex-col gap-2 relative z-10">
-              <span className="text-xs text-zinc-500 uppercase font-bold tracking-wider">Redirecting to login in</span>
-              <span className="text-4xl font-black text-white">{successData.countdown}s</span>
+            <div className="w-full bg-[#e7e4db] rounded-xl p-3 border border-[#d5d2c6] mb-4">
+              <span className="text-[10px] uppercase font-bold text-[#727365] block">Redirecting to login in</span>
+              <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-3xl text-[#161713]">{successData.countdown}s</span>
             </div>
-            
-            <button 
-              type="button"
-              onClick={() => window.location.href = '/login'}
-              className="mt-6 w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider transition-colors relative z-10"
+            <Link
+              href="/login"
+              className="w-full py-3 rounded-xl bg-[#ff5a24] text-[#161713] font-black text-xs uppercase tracking-wider border-2 border-[#161713] shadow-[2px_2px_0px_#161713]"
             >
-              Go to Login
-            </button>
+              GO TO LOGIN ↗
+            </Link>
           </div>
         </div>
       )}
 
-      {/* LEFT brand panel */}
-      <div
-        className="hidden lg:flex lg:w-[40%] relative flex-col justify-between p-12 overflow-hidden border-r border-zinc-900/60"
-        style={{ backgroundImage: "linear-gradient(160deg, rgba(8,8,12,0.92) 0%, rgba(8,8,12,0.72) 60%, rgba(100,30,200,0.10) 100%), url('https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?q=80&w=800')", backgroundSize: 'cover', backgroundPosition: 'center' }}
-      >
-        <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full bg-purple-700/8 blur-[120px] pointer-events-none" />
+      {/* Collectible Paper Card */}
+      <div className="w-full max-w-lg bg-[#f4f1e9] rounded-3xl border-2 border-[#161713] shadow-[8px_8px_0px_#161713] p-6 sm:p-8">
 
-        <Link href="/" className="flex items-center gap-4 relative z-10 group w-fit">
-          <Image src="/logo.png" alt="Vybetix" width={128} height={128} />
-          <span className="text-5xl font-black tracking-tighter font-syne text-white group-hover:text-[#E8441A] transition-colors">Vybetix</span>
-        </Link>
-
-        <div className="relative z-10 flex flex-col gap-5">
-          <h2 className="text-3xl xl:text-4xl font-black text-white font-syne uppercase tracking-tight leading-[1.05]">
-            Join Nigeria's<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8441A] to-amber-400">Premier Ticket</span><br />
-            Network.
-          </h2>
-          <p className="text-zinc-400 text-sm leading-relaxed max-w-xs">Access student discounts, campus-gated events, and cryptographically sealed QR codes for instant entry.</p>
-          <div className="flex flex-col gap-2.5 mt-2">
-            {['Buy tickets with campus verification', 'Exclusive campus-only access gates', 'Host events & collect Paystack payouts'].map((t) => (
-              <div key={t} className="flex items-center gap-2.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#E8441A] shrink-0" />
-                <span className="text-xs text-zinc-400">{t}</span>
-              </div>
-            ))}
+        {/* Top Header */}
+        <div className="border-b-2 border-[#161713] pb-4 mb-6">
+          <div className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24]">
+            VYBETIX ✳ CREATE YOUR ACCOUNT
           </div>
+          <h1 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-4xl text-[#161713] tracking-tight leading-none mt-1">
+            BE THERE. GET YOUR PASS.
+          </h1>
+          <p className="text-xs text-[#606257] mt-1 font-medium">
+            Join the live culture network. Setup takes under 2 minutes.
+          </p>
         </div>
 
-        <div className="relative z-10">
-          <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">TRUSTED ACROSS NIGERIA</p>
-          <p className="text-xs text-zinc-500 mt-1">UNILAG · UI · ABU · FUTA · OAU · UNN & 40+ campuses</p>
+        {/* Role Selector Tabs */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {ROLE_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const active = role === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setRole(opt.value as any)}
+                className={`p-3 rounded-2xl border-2 text-left transition-all ${active
+                    ? 'border-[#161713] bg-[#ffffff] shadow-[3px_3px_0px_#ff5a24]'
+                    : 'border-[#d5d2c6] bg-[#e7e4db] hover:border-[#161713]'
+                  }`}
+              >
+                <Icon className={`h-4 w-4 mb-1 ${active ? 'text-[#ff5a24]' : 'text-[#737568]'}`} />
+                <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-sm block tracking-wide text-[#161713]">
+                  {opt.label}
+                </span>
+                <span className="text-[9px] text-[#727365] block leading-tight">{opt.sub}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      {/* RIGHT form panel */}
-      <div className="flex-1 flex items-start justify-center px-6 sm:px-10 py-12 overflow-y-auto">
-        <div className="w-full max-w-lg">
-
-          <Link href="/" className="flex items-center gap-4 mb-8 lg:hidden group w-fit">
-            <Image src="/logo.png" alt="Vybetix" width={96} height={96} />
-            <span className="text-3xl font-black tracking-tighter font-syne text-white">Vybetix</span>
-          </Link>
-
-          <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-black text-white font-syne uppercase tracking-tight mb-2">Create Account</h1>
-            <p className="text-sm text-zinc-500">Join the network. Set up your profile in under 2 minutes.</p>
-          </div>
-
-          {/* Role selector */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {ROLE_OPTIONS.map((opt) => {
-              const Icon = opt.icon;
-              const active = role === opt.value;
-              return (
-                <button key={opt.value} type="button" onClick={() => setRole(opt.value as any)}
-                  className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border text-left transition-all ${active ? 'border-[#E8441A] bg-[#E8441A]/8' : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700'}`}>
-                  <Icon className={`h-5 w-5 ${active ? 'text-[#E8441A]' : 'text-zinc-500'}`} />
-                  <span className={`text-xs font-black uppercase tracking-wider ${active ? 'text-white' : 'text-zinc-400'}`}>{opt.label}</span>
-                  <span className="text-[10px] text-zinc-500 leading-snug">{opt.sub}</span>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Full Name</label>
+              <input type="text" placeholder="Tunde Alao" required value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Email Address</label>
+              <input type="email" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Phone Number (+234...)</label>
+              <input
+                type="tel"
+                placeholder="0803 123 4567"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Password</label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputCls} pr-9`} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-0 h-full px-2.5 text-[#737568]">
+                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
-              );
-            })}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Confirm Password</label>
+              <div className="relative">
+                <input type={showConfirmPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`${inputCls} pr-9`} />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-0 top-0 h-full px-2.5 text-[#737568]">
+                  {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Full Name</label>
-                <input type="text" placeholder="Tunde Alao" required value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputCls} />
+          {/* Organizer Payout Details */}
+          {role === 'organizer' && (
+            <div className="p-4 rounded-2xl bg-[#e7e4db] border border-[#d5d2c6] space-y-3 mt-1">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24] flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5" /> ORGANIZER PAYOUT DETAILS
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Email Address</label>
-                <input type="email" placeholder="you@unilag.edu.ng" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Phone Number</label>
-                <div className="flex rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden focus-within:border-[#E8441A] focus-within:ring-2 focus-within:ring-[#E8441A]/20 transition-all">
-                  <div className="flex items-center justify-center px-4 bg-zinc-900 border-r border-zinc-800 text-zinc-400 text-sm font-bold">
-                    +234
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Business Name</label>
+                  <input type="text" placeholder="Vybe Media Productions" required value={businessName} onChange={(e) => setBusinessName(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Bank Name</label>
+                  {loadingBanks ? (
+                    <div className="text-xs text-[#737568] py-2">Loading banks...</div>
+                  ) : (
+                    <SearchableSelect
+                      options={banks.map(bank => ({ value: `${bank.code}:${bank.name}`, label: bank.name }))}
+                      value={bankName}
+                      onChange={setBankName}
+                      placeholder="Select Bank..."
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Account Number (10 digits)</label>
+                  <input type="text" maxLength={10} placeholder="0123456789" required value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Account Name</label>
                   <input
-                    type="tel"
-                    placeholder="803 123 4567"
+                    type="text"
+                    placeholder={resolvingAccount ? "Verifying..." : "Resolved automatically"}
                     required
-                    value={phone.replace(/^\+234/, '').replace(/^0/, '')}
-                    onChange={(e) => {
-                      const numeric = e.target.value.replace(/\D/g, '');
-                      setPhone(numeric ? `+234${numeric}` : '');
-                    }}
-                    className="h-11 w-full bg-transparent px-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
+                    readOnly
+                    value={accountName}
+                    className={`${inputCls} ${accountName ? 'bg-[#c4db59]/20 font-bold' : 'bg-[#e9e6dd]'}`}
                   />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Password</label>
-                <div className="relative">
-                  <input type={showPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputCls} pr-12`} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-0 h-11 px-4 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none">
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Confirm Password</label>
-                <div className="relative">
-                  <input type={showConfirmPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`${inputCls} pr-12`} />
-                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-0 top-0 h-11 px-4 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none">
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                  {accountError && <span className="text-[9px] text-red-600 block mt-0.5">{accountError}</span>}
                 </div>
               </div>
             </div>
+          )}
 
-            {role === 'organizer' && (
-              <div className="flex flex-col gap-4 pt-5 mt-1 border-t border-zinc-900">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#E8441A]" />
-                  <span className="text-[10px] font-black text-[#E8441A] uppercase tracking-widest">Business & Payout Details</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Business Name</label>
-                    <input type="text" placeholder="Alao Media Production" required value={businessName} onChange={(e) => setBusinessName(e.target.value)} className={inputCls} />
-                  </div>
-                  
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Bank Name</label>
-                    {loadingBanks ? (
-                      <div className="flex items-center gap-2 text-xs text-zinc-450 h-11 px-4 border border-zinc-800 rounded-xl bg-zinc-950/60">
-                        <Disc className="h-3.5 w-3.5 animate-spin text-[#E8441A]" />
-                        Retrieving banks...
-                      </div>
-                    ) : (
-                      <SearchableSelect
-                        options={banks.map(bank => ({ value: `${bank.code}:${bank.name}`, label: bank.name }))}
-                        value={bankName}
-                        onChange={setBankName}
-                        placeholder="Select Bank..."
-                      />
-                    )}
-                  </div>
-                  
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Account Number</label>
-                    <input type="text" maxLength={10} placeholder="0123456789" required value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className={inputCls} />
-                  </div>
-                  
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Account Name</label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        placeholder={resolvingAccount ? "Verifying..." : "Resolved automatically"} 
-                        required 
-                        readOnly
-                        value={accountName} 
-                        className={`${inputCls} pr-10 ${accountName ? 'border-emerald-500/50 bg-emerald-500/5 text-emerald-100' : 'bg-zinc-900 cursor-not-allowed'}`} 
-                      />
-                      {resolvingAccount && <Disc className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-[#E8441A]" />}
-                      {accountName && !resolvingAccount && <CheckCircle2 className="absolute right-3 top-3.5 h-4 w-4 text-emerald-500" />}
-                      {accountError && !resolvingAccount && <AlertCircle className="absolute right-3 top-3.5 h-4 w-4 text-red-500" />}
-                    </div>
-                    {accountError && <span className="text-[10px] text-red-400 mt-0.5">{accountError}</span>}
-                  </div>
-                </div>
-              </div>
+          <button
+            type="submit"
+            disabled={isRegistering}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-[#ff5a24] hover:bg-[#e04a1a] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border-2 border-[#161713] shadow-[3px_3px_0px_#161713] mt-2"
+          >
+            {isRegistering ? (
+              <Disc className="h-4 w-4 animate-spin" />
+            ) : (
+              <>CREATE ACCOUNT ↗</>
             )}
+          </button>
 
-            <button type="submit" disabled={isRegistering}
-              className="h-12 w-full rounded-xl bg-[#E8441A] hover:brightness-110 active:scale-[0.98] transition-all text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#E8441A]/20 disabled:opacity-60 mt-1">
-              {isRegistering ? <Disc className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4" />Create Account</>}
-            </button>
+          <div className="text-center pt-2">
+            <span className="text-xs text-[#606257]">Already have an account? </span>
+            <Link
+              href={`/login?redirect=${encodeURIComponent(redirectUrl)}`}
+              className="text-xs font-black text-[#161713] underline decoration-[#ff5a24] decoration-2 uppercase tracking-wide hover:text-[#ff5a24]"
+            >
+              Sign In ↗
+            </Link>
+          </div>
 
-            <p className="text-center text-xs text-zinc-500">
-              Already have an account?{' '}
-              <Link href={`/login?redirect=${encodeURIComponent(redirectUrl)}`} className="text-[#E8441A] hover:text-[#ff6b3d] font-bold transition-colors">Sign In &rarr;</Link>
-            </p>
-          </form>
-        </div>
+        </form>
+
       </div>
+
     </div>
   );
 }
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div className="flex-1 flex flex-col items-center justify-center bg-[#08080C] py-36"><Disc className="h-10 w-10 text-[#E8441A] animate-spin" /></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#161713] flex flex-col items-center justify-center p-6 text-[#f4f1e9] font-['DM_Sans',sans-serif]">
+        <Disc className="h-10 w-10 text-[#ff5a24] animate-spin" />
+      </div>
+    }>
       <RegisterContent />
     </Suspense>
   );
 }
-

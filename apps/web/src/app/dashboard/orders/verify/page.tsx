@@ -3,16 +3,19 @@
 import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '../../../../lib/api';
-import { Disc, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Disc, CheckCircle2, AlertTriangle, ArrowRight, Mail, Ticket, QrCode, Compass, Sparkles } from 'lucide-react';
+import { useAuthStore } from '../../../../store/authStore';
 import Link from 'next/link';
 
 function OrderVerifyContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const reference = searchParams.get('reference');
+  const { token } = useAuthStore();
 
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState('Verifying your transaction with Paystack...');
+  const [tickets, setTickets] = useState<any[]>([]);
   const verificationStarted = useRef(false);
 
   useEffect(() => {
@@ -22,95 +25,148 @@ function OrderVerifyContent() {
       return;
     }
 
-    // Prevent double invocation in React StrictMode
     if (verificationStarted.current) return;
     verificationStarted.current = true;
 
     async function verifyPayment() {
       try {
-        await api.get(`/api/payments/verify/${reference}`);
+        const res = await api.get(`/api/payments/verify/${reference}`);
+        const data = res.data?.data;
+        const generatedTickets = data?.tickets || [];
+        setTickets(generatedTickets);
+
         setStatus('success');
-        setMessage('Your ticket purchase has been verified successfully!');
-        
-        // Auto redirect after 3 seconds
-        setTimeout(() => {
-          window.location.href = '/tickets';
-        }, 3000);
+        setMessage(
+          token
+            ? 'Your admission pass has been confirmed and added to your Ticket Vault!'
+            : 'Payment confirmed! Your permanent admission passes with QR codes are ready.'
+        );
+
+        if (token) {
+          setTimeout(() => {
+            window.location.href = '/tickets';
+          }, 3500);
+        }
       } catch (err: any) {
         console.error('Verification error:', err);
         setStatus('error');
-        setMessage(err.response?.data?.message || 'Failed to verify transaction status. Please contact support if your account was debited.');
+        setMessage(
+          err.response?.data?.message ||
+          'Failed to verify transaction status. Please check your email or contact support.'
+        );
       }
     }
 
     verifyPayment();
-  }, [reference, router]);
+  }, [reference, router, token]);
 
   return (
-    <div className="w-full min-h-screen bg-[#08080C] font-outfit text-zinc-100 flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md p-8 rounded-3xl border border-zinc-900 bg-zinc-950/80 backdrop-blur-2xl text-center flex flex-col items-center gap-6 shadow-2xl shadow-black/50">
+    <div className="w-full min-h-screen bg-[#161713] font-['DM_Sans',sans-serif] text-[#161713] flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-[#ff5a24] selection:text-[#161713]">
+      
+      {/* COLLECTIBLE ORDER CONFIRMATION CARD */}
+      <div className="w-full max-w-md bg-[#f4f1e9] rounded-3xl border-2 border-[#161713] shadow-[8px_8px_0px_#161713] p-6 sm:p-8 text-center flex flex-col items-center gap-5">
         
+        {/* Top Kicker */}
+        <div className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24]">
+          VYBETIX ✳ TRANSACTION RECEIPT
+        </div>
+
         {/* Status Graphic */}
         {status === 'verifying' && (
-          <div className="relative flex items-center justify-center w-20 h-20">
-            <div className="absolute inset-0 rounded-full border-4 border-[#E8441A]/10 animate-pulse" />
-            <Disc className="h-12 w-12 text-[#E8441A] animate-spin" />
+          <div className="flex flex-col items-center gap-3 my-2">
+            <Disc className="h-12 w-12 text-[#ff5a24] animate-spin" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#737568]">
+              Confirming with Paystack...
+            </span>
           </div>
         )}
 
         {status === 'success' && (
-          <div className="flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 animate-bounce">
-            <CheckCircle2 className="h-10 w-10" />
+          <div className="w-16 h-16 rounded-2xl bg-[#c4db59] text-[#161713] border-2 border-[#161713] shadow-[3px_3px_0px_#161713] flex items-center justify-center my-1">
+            <Sparkles className="h-8 w-8 text-[#161713]" />
           </div>
         )}
 
         {status === 'error' && (
-          <div className="flex items-center justify-center w-20 h-20 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 animate-pulse">
-            <AlertTriangle className="h-10 w-10" />
+          <div className="w-16 h-16 rounded-2xl bg-[#ff5a24] text-[#f4f1e9] border-2 border-[#161713] shadow-[3px_3px_0px_#161713] flex items-center justify-center my-1">
+            <AlertTriangle className="h-8 w-8 text-[#161713]" />
           </div>
         )}
 
-        {/* Title */}
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-black text-white font-syne uppercase tracking-wider">
-            {status === 'verifying' && 'Verifying Payment'}
-            {status === 'success' && 'Payment Successful!'}
-            {status === 'error' && 'Verification Failed'}
+        {/* Heading */}
+        <div>
+          <h2 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-3xl sm:text-4xl tracking-tight text-[#161713] leading-none">
+            {status === 'verifying' && 'VERIFYING ORDER'}
+            {status === 'success' && 'YOU ARE IN! BE THERE.'}
+            {status === 'error' && 'TRANSACTION ISSUE'}
           </h2>
-          <p className="text-xs text-zinc-500 font-mono tracking-tight break-all">
-            Ref: {reference || 'N/A'}
+          <p className="text-[10px] font-mono font-bold text-[#737568] uppercase mt-2">
+            REF: #{reference || 'N/A'}
           </p>
         </div>
 
         {/* Message */}
-        <p className="text-sm text-zinc-400 leading-relaxed max-w-xs">
+        <p className="text-xs text-[#606257] leading-relaxed max-w-xs font-medium">
           {message}
         </p>
 
-        {/* Action Button */}
-        {status !== 'verifying' && (
-          <div className="w-full pt-4 border-t border-zinc-900/80">
+        {/* Perforated Tear Notch with Barcode */}
+        <div className="vyb-tear w-full my-1">
+          <div className="vyb-barcode" />
+          <span className="text-[7px] font-mono font-bold tracking-widest text-[#737568]">CONFIRMED</span>
+        </div>
+
+        {/* Actions */}
+        {status === 'success' && (
+          <div className="w-full flex flex-col gap-2.5 pt-2">
+            {tickets.length > 0 && (
+              <Link
+                href={`/tickets/view?id=${tickets[0].id}&token=${encodeURIComponent(tickets[0].qr_token || '')}`}
+                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#ff5a24] hover:bg-[#e04a1a] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border-2 border-[#161713] shadow-[3px_3px_0px_#161713]"
+              >
+                <QrCode className="h-4 w-4" />
+                VIEW ENTRY PASS NOW ↗
+              </Link>
+            )}
+
+            {token ? (
+              <Link
+                href="/tickets"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#161713] hover:bg-[#25261f] text-[#f4f1e9] text-xs font-black uppercase tracking-wider transition-all border border-[#161713]"
+              >
+                Open Ticket Vault ↗
+              </Link>
+            ) : (
+              <div className="flex flex-col gap-2 pt-1 text-center">
+                <span className="text-[11px] text-[#606257] flex items-center justify-center gap-1.5 font-medium">
+                  <Mail className="h-3.5 w-3.5 text-[#ff5a24]" />
+                  A permanent copy of your pass was emailed to you.
+                </span>
+                <Link
+                  href="/events"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-transparent hover:bg-[#e9e6dd] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border border-[#161713] mt-1"
+                >
+                  <Compass className="h-3.5 w-3.5 text-[#ff5a24]" />
+                  Explore More Vybes ↗
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="w-full pt-2">
             <Link
-              href="/tickets"
-              className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                status === 'success'
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
-                  : 'bg-[#E8441A] hover:brightness-110 text-white shadow-lg shadow-[#E8441A]/15'
-              }`}
+              href="/events"
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#161713] text-[#f4f1e9] text-xs font-black uppercase tracking-wider transition-all"
             >
-              Go to My Tickets
-              <ArrowRight className="h-4 w-4" />
+              Return to Events ↗
             </Link>
           </div>
         )}
 
-        {status === 'verifying' && (
-          <p className="text-xxs text-zinc-600 animate-pulse uppercase tracking-widest font-bold">
-            Communicating with Paystack securely...
-          </p>
-        )}
-
       </div>
+
     </div>
   );
 }
@@ -118,12 +174,12 @@ function OrderVerifyContent() {
 export default function OrderVerifyPage() {
   return (
     <Suspense fallback={
-      <div className="w-full min-h-screen bg-[#08080C] font-outfit text-zinc-100 flex flex-col items-center justify-center p-6">
-        <Disc className="h-12 w-12 text-[#E8441A] animate-spin" />
+      <div className="w-full min-h-screen bg-[#161713] text-[#f4f1e9] flex flex-col items-center justify-center p-6 font-['DM_Sans',sans-serif]">
+        <Disc className="h-10 w-10 text-[#ff5a24] animate-spin mb-4" />
+        <span className="text-xs font-black uppercase tracking-widest text-[#a7a89e]">Verifying Order...</span>
       </div>
     }>
       <OrderVerifyContent />
     </Suspense>
   );
 }
-

@@ -2,9 +2,6 @@
 
 import React, { useState } from 'react';
 import { Dialog } from '../ui/dialog';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
 import { TicketTier, EventDetail } from '../../types';
 import { usePurchaseTicket } from '../../hooks/useTickets';
 import { formatNaira } from '../../lib/utils';
@@ -13,7 +10,7 @@ import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
-import { ShoppingBag, Minus, Plus, CreditCard, Mail, User, Phone } from 'lucide-react';
+import { Minus, Plus, CreditCard, User, Sparkles, Disc, ShieldCheck } from 'lucide-react';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -28,15 +25,13 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
   const purchaseMutation = usePurchaseTicket();
   const [isPaystackLoading, setIsPaystackLoading] = useState(false);
 
-  // Tier select states
   const availableTiers = event.ticket_tiers || event.tiers || [];
   const [selectedTierId, setSelectedTierId] = useState<string | null>(
     availableTiers.length > 0 ? availableTiers[0].id : null
   );
   const [quantity, setQuantity] = useState(1);
 
-  // Attendee details state
-  const [attendees, setAttendees] = useState<{name: string, email: string, phone: string}[]>([
+  const [attendees, setAttendees] = useState<{ name: string, email: string, phone: string }[]>([
     { name: user?.full_name || '', email: user?.email || '', phone: user?.phone || '' }
   ]);
 
@@ -55,7 +50,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
     });
   };
 
-  const updateAttendee = (index: number, field: 'name'|'email'|'phone', value: string) => {
+  const updateAttendee = (index: number, field: 'name' | 'email' | 'phone', value: string) => {
     const newAttendees = [...attendees];
     newAttendees[index][field] = value;
     setAttendees(newAttendees);
@@ -63,7 +58,7 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
   const activeTier = availableTiers.find((t) => t.id === selectedTierId);
   const baseAmountKobo = activeTier ? activeTier.price * quantity : 0;
-  const platformFeeKobo = baseAmountKobo > 0 ? 10000 : 0; // 100 Naira (10000 kobo) flat service fee for paid transactions
+  const platformFeeKobo = baseAmountKobo > 0 ? 10000 : 0; // 100 Naira flat service fee
   const totalAmountKobo = baseAmountKobo + platformFeeKobo;
 
   const handleCheckout = async (e: React.FormEvent) => {
@@ -74,19 +69,17 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
       return;
     }
 
-    // Check if all attendees have completed details
     const incompleteAttendee = attendees.find(a => !a.name || !a.email || !a.phone);
     if (incompleteAttendee) {
       toast({ title: 'Missing details', description: 'Please complete all attendee registration details', variant: 'destructive' });
       return;
     }
 
-    // Phone regex check
     const invalidPhone = attendees.find(a => !/^\+234[789][01]\d{8}$/.test(a.phone));
     if (invalidPhone) {
       toast({
         title: 'Invalid phone format',
-        description: 'Phone numbers must be a valid Nigerian number in the format +23480...',
+        description: 'Phone numbers must be a valid Nigerian number (+234...)',
         variant: 'destructive'
       });
       return;
@@ -94,34 +87,36 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
 
     try {
       setIsPaystackLoading(true);
-      // 1. Fire purchase request to backend API to initialize order
       const orderSession = await purchaseMutation.mutateAsync({
         tierId: selectedTierId,
         quantity,
         attendees
       });
 
+      const targetDestination = user
+        ? '/tickets'
+        : `/dashboard/orders/verify?reference=${encodeURIComponent(orderSession.reference)}`;
+
       if (orderSession.amount === 0 || !orderSession.accessCode) {
         toast({
-          title: 'Tickets Claimed!',
-          description: 'Your free tickets have been successfully generated.',
+          title: 'Passes Claimed!',
+          description: 'Your free gate passes have been sent to your email.',
           variant: 'success'
         });
         setIsPaystackLoading(false);
         onClose();
-        window.location.href = '/tickets';
+        window.location.href = targetDestination;
         return;
       }
 
       toast({
-        title: 'Checkout initialized',
-        description: 'Connecting to Paystack checkout portal...',
+        title: 'Connecting to Paystack',
+        description: 'Launching secure checkout portal...',
         variant: 'success'
       });
 
-      // 2. Open Paystack Inline browser checkout dialog
       openPaystackCheckout({
-        email: attendees[0].email, // Primary buyer email for Paystack receipt
+        email: attendees[0].email,
         amount: orderSession.amount,
         reference: orderSession.reference,
         accessCode: orderSession.accessCode,
@@ -129,33 +124,28 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
           try {
             toast({
               title: 'Verifying payment...',
-              description: 'Please wait while we verify your transaction with Paystack.',
+              description: 'Confirming order with Paystack gateway...',
               variant: 'info'
             });
             await api.get(`/api/payments/verify/${orderSession.reference}`);
             toast({
               title: 'Payment successful!',
-              description: `Order ${orderSession.reference} has been successfully completed.`,
+              description: `Order confirmed. Gate pass ready!`,
               variant: 'success'
             });
           } catch (error: any) {
             console.error('Payment verification failed:', error);
-            toast({
-              title: 'Verification status',
-              description: error.response?.data?.message || 'Payment is processing. Please check your tickets tab.',
-              variant: 'info'
-            });
           } finally {
             setIsPaystackLoading(false);
             onClose();
-            window.location.href = '/tickets';
+            window.location.href = targetDestination;
           }
         },
         onCancel: () => {
           setIsPaystackLoading(false);
           toast({
             title: 'Payment cancelled',
-            description: 'The transaction checkout has been cancelled.',
+            description: 'The checkout transaction was cancelled.',
             variant: 'destructive'
           });
         }
@@ -173,23 +163,23 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
   };
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title="Secure Checkout">
-      <form onSubmit={handleCheckout} className="flex flex-col gap-6 font-outfit text-zinc-100">
-        
-        {/* Event quick details */}
-        <div className="flex flex-col border-b border-zinc-800 pb-4 mb-2">
-          <span className="text-xxs font-bold text-zinc-500 uppercase tracking-widest">
-            Ordering tickets for
-          </span>
-          <h3 className="text-base font-bold text-white tracking-wide uppercase font-syne truncate">
+    <Dialog isOpen={isOpen} onClose={onClose} title="Ticket Checkout">
+      <form onSubmit={handleCheckout} className="flex flex-col gap-5 font-['DM_Sans',sans-serif] text-[#161713] bg-[#f4f1e9] p-2">
+
+        {/* Modal Header */}
+        <div className="border-b-2 border-[#161713] pb-3">
+          <div className="text-[9px] font-black uppercase tracking-wider text-[#ff5a24]">
+            VYBETIX ✳ TICKET CHECKOUT
+          </div>
+          <h2 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-2xl sm:text-3xl tracking-tight text-[#161713] leading-none mt-1 truncate">
             {event.title}
-          </h3>
+          </h2>
         </div>
 
         {/* 1. Ticket Tier Selection */}
-        <div className="flex flex-col gap-2.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            Select Ticket Type
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-black uppercase tracking-wider text-[#737568]">
+            Choose Admission Tier
           </label>
           <div className="flex flex-col gap-2">
             {availableTiers.map((tier) => {
@@ -204,23 +194,29 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
                   disabled={isSoldOut}
                   onClick={() => {
                     setSelectedTierId(tier.id);
-                    handleQuantityChange(1); // Reset qty on change
+                    handleQuantityChange(1);
                   }}
-                  className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-300 text-left disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${
                     isSelected
-                      ? 'border-[#E8441A] bg-[#E8441A]/5 shadow-md shadow-[#E8441A]/5'
-                      : 'border-zinc-800 bg-[#121212] hover:border-zinc-700'
+                      ? 'border-[#161713] bg-[#ffffff] shadow-[3px_3px_0px_#ff5a24]'
+                      : 'border-[#d5d2c6] bg-[#e9e6dd] hover:border-[#161713]'
                   }`}
                 >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold uppercase tracking-wide text-zinc-100">{tier.name}</span>
-                    <span className="text-xxs text-zinc-400 font-medium line-clamp-1">{tier.description || 'Standard Gate access'}</span>
+                  <div>
+                    <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-lg uppercase tracking-tight text-[#161713] block">
+                      {tier.name}
+                    </span>
+                    <span className="text-[10px] text-[#606257] font-medium">
+                      {tier.description || 'Standard Gate Access'}
+                    </span>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm font-extrabold text-[#E8441A]">{formatNaira(tier.price)}</span>
-                    {isSoldOut ? (
-                      <Badge variant="danger">SOLD OUT</Badge>
-                    ) : null}
+                  <div className="text-right">
+                    <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-xl text-[#161713]">
+                      {tier.price === 0 ? 'FREE' : formatNaira(tier.price)}
+                    </span>
+                    {isSoldOut && (
+                      <span className="block text-[8px] font-black uppercase text-red-600">SOLD OUT</span>
+                    )}
                   </div>
                 </button>
               );
@@ -228,121 +224,129 @@ export default function CheckoutModal({ isOpen, onClose, event }: CheckoutModalP
           </div>
         </div>
 
-        {/* 2. Quantity selection counter */}
+        {/* 2. Quantity selector */}
         {activeTier && (
-          <div className="flex items-center justify-between border-t border-b border-zinc-800/60 py-4">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              Quantity
+          <div className="flex items-center justify-between bg-[#e9e6dd] border border-[#d5d2c6] rounded-xl p-3">
+            <span className="text-xs font-black uppercase tracking-wider text-[#161713]">
+              Pass Quantity
             </span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
-                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                className="w-8 h-8 rounded-lg bg-[#ffffff] border-2 border-[#161713] text-[#161713] font-black flex items-center justify-center hover:bg-[#ff5a24] transition-colors"
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="text-base font-extrabold text-white w-6 text-center">{quantity}</span>
+              <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-2xl w-6 text-center text-[#161713]">
+                {quantity}
+              </span>
               <button
                 type="button"
                 onClick={() => handleQuantityChange(Math.min(5, activeTier.quantity - (activeTier.sold || 0), quantity + 1))}
-                className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                className="w-8 h-8 rounded-lg bg-[#ffffff] border-2 border-[#161713] text-[#161713] font-black flex items-center justify-center hover:bg-[#ff5a24] transition-colors"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* 3. Ticket Holder registration details */}
-        <div className="flex flex-col gap-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-          <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-yellow-200 text-xs">
-            <div className="flex flex-col gap-1">
-              <p className="font-bold uppercase tracking-wider text-[10px] text-yellow-400">⚠️ Anti-Fraud Device Lock</p>
-              <p className="text-zinc-400 text-[11px] leading-relaxed">
-                Tickets are permanently locked to the first phone they are opened on. If buying for friends, they must log in on their own phones to claim their tickets. Do not open a friend's ticket on your phone unless you plan to scan them in at the gate together.
-              </p>
-            </div>
+        {/* 3. Attendees form */}
+        <div className="flex flex-col gap-3 max-h-[35vh] overflow-y-auto pr-1">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#c4db59]/25 border border-[#c4db59] text-[11px] font-semibold text-[#161713]">
+            <ShieldCheck className="h-4 w-4 text-[#161713] shrink-0" />
+            <span>Permanent passes with gate QR codes sent straight to your email.</span>
           </div>
 
           {attendees.map((attendee, index) => (
-            <div key={index} className="flex flex-col gap-4 p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/20">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#E8441A] flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Attendee {index + 1} {index === 0 && "(Primary Buyer)"}
-              </h4>
-              
-              <Input
-                label="Full Name"
-                placeholder="John Doe"
-                required
-                value={attendee.name}
-                onChange={(e) => updateAttendee(index, 'name', e.target.value)}
-              />
+            <div key={index} className="p-3.5 rounded-xl border border-[#d5d2c6] bg-[#ffffff] space-y-2.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24] block">
+                Attendee {index + 1} {index === 0 && '(Primary Buyer)'}
+              </span>
 
-              <Input
-                label="Email Address"
-                type="email"
-                placeholder="johndoe@example.com"
-                required
-                value={attendee.email}
-                onChange={(e) => updateAttendee(index, 'email', e.target.value)}
-              />
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-[#737568] block mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Alex Morgan"
+                  required
+                  value={attendee.name}
+                  onChange={(e) => updateAttendee(index, 'name', e.target.value)}
+                  className="w-full bg-[#f4f1e9] border border-[#393a32] rounded-lg px-3 py-2 text-xs text-[#161713] font-medium focus:outline-none focus:border-[#ff5a24]"
+                />
+              </div>
 
-              <Input
-                label="Phone Number"
-                placeholder="803 123 4567"
-                required
-                prefixElement="+234"
-                value={attendee.phone.replace(/^\+234/, '').replace(/^0/, '')}
-                onChange={(e) => {
-                  const numeric = e.target.value.replace(/\D/g, '');
-                  updateAttendee(index, 'phone', numeric ? `+234${numeric}` : '');
-                }}
-              />
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-[#737568] block mb-1">
+                  Email Address (Pass Delivery)
+                </label>
+                <input
+                  type="email"
+                  placeholder="alex@example.com"
+                  required
+                  value={attendee.email}
+                  onChange={(e) => updateAttendee(index, 'email', e.target.value)}
+                  className="w-full bg-[#f4f1e9] border border-[#393a32] rounded-lg px-3 py-2 text-xs text-[#161713] font-medium focus:outline-none focus:border-[#ff5a24]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-[#737568] block mb-1">
+                  Nigerian Phone (+234...)
+                </label>
+                <div className="flex items-center bg-[#f4f1e9] border border-[#393a32] rounded-lg px-3 py-2">
+                  <span className="text-xs font-bold text-[#737568] mr-1.5">+234</span>
+                  <input
+                    type="tel"
+                    placeholder="801 234 5678"
+                    required
+                    value={attendee.phone.replace(/^\+234/, '').replace(/^0/, '')}
+                    onChange={(e) => {
+                      const numeric = e.target.value.replace(/\D/g, '');
+                      updateAttendee(index, 'phone', numeric ? `+234${numeric}` : '');
+                    }}
+                    className="w-full bg-transparent border-0 text-xs text-[#161713] font-medium focus:outline-none"
+                  />
+                </div>
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Total & Action Button */}
-        <div className="flex flex-col gap-4 pt-4 border-t border-zinc-800">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-zinc-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Subtotal</span>
-              <span className="text-sm font-semibold text-zinc-300">{formatNaira(baseAmountKobo)}</span>
-            </div>
-            <div className="flex items-center justify-between text-zinc-400">
-              <span className="text-xs font-semibold uppercase tracking-wider">Service Charge</span>
-              <span className="text-sm font-semibold text-zinc-300">{formatNaira(platformFeeKobo)}</span>
-            </div>
-            <div className="flex items-center justify-between border-t border-zinc-800/50 pt-2 mt-1">
-              <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
-                Total Amount
-              </span>
-              <span className="text-xl font-extrabold text-[#E8441A]">
-                {formatNaira(totalAmountKobo)}
-              </span>
-            </div>
+        {/* 4. Total & Submit */}
+        <div className="pt-3 border-t-2 border-[#161713] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#737568]">Total Due</span>
+            <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-3xl text-[#161713]">
+              {formatNaira(totalAmountKobo)}
+            </span>
           </div>
 
-          <Button
+          <button
             type="submit"
-            isLoading={purchaseMutation.isPending || isPaystackLoading}
-            className="w-full flex items-center justify-center gap-2 uppercase tracking-widest text-xs h-12"
+            disabled={purchaseMutation.isPending || isPaystackLoading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-[#ff5a24] hover:bg-[#e04a1a] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border-2 border-[#161713] shadow-[3px_3px_0px_#161713]"
           >
-            {totalAmountKobo === 0 ? (
-              <>Claim Free Tickets</>
+            {(purchaseMutation.isPending || isPaystackLoading) ? (
+              <>
+                <Disc className="h-4 w-4 animate-spin" />
+                Connecting to Checkout...
+              </>
+            ) : totalAmountKobo === 0 ? (
+              <>CLAIM FREE PASSES ↗</>
             ) : (
               <>
-                <CreditCard className="h-4.5 w-4.5" />
-                Pay with Paystack
+                <CreditCard className="h-4 w-4" />
+                PAY WITH PAYSTACK ↗
               </>
             )}
-          </Button>
+          </button>
         </div>
 
       </form>
     </Dialog>
   );
 }
-

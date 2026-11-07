@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Badge } from '../ui/badge';
-import { RefreshCw, Loader2 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 interface QRDisplayProps {
   ticketId: string;
@@ -13,135 +12,48 @@ interface QRDisplayProps {
 }
 
 /**
- * Premium secure QR code display that animates a rotating 30s circular countdown.
+ * Clean, standard QR code display for venue gate entry.
  */
-export default function QRDisplay({ ticketId, staticToken, onExpire }: QRDisplayProps) {
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [activeToken, setActiveToken] = useState(staticToken);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const fetchFreshToken = useCallback(async () => {
-    try {
-      setIsRefreshing(true);
-      const res = await api.get(`/api/tickets/${ticketId}/qr-token`);
-      if (res.data?.data?.qr_token) {
-        setActiveToken(res.data.data.qr_token);
-      }
-    } catch (err) {
-      console.error('Failed to refresh QR token', err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [ticketId]);
-
-  // Countdown loop
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // Reset the timer, fetch fresh token, and play refresh pulse
-          setRefreshTrigger((r) => r + 1);
-          fetchFreshToken();
-          if (onExpire) {
-            onExpire();
-          }
-          return 60;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [fetchFreshToken, onExpire]);
-
-  const progressPercentage = (timeLeft / 60) * 100;
-  
-  // The QR code encodes the dynamic active token to ensure screenshots expire.
-  const visiblePayload = activeToken;
+export default function QRDisplay({ ticketId, staticToken }: QRDisplayProps) {
+  const visiblePayload = staticToken;
 
   return (
     <div 
-      className="flex flex-col items-center gap-6 font-outfit text-zinc-100 p-4 select-none"
-      onContextMenu={(e) => e.preventDefault()}
+      className="flex flex-col items-center gap-4 font-outfit text-zinc-100 p-4 select-none"
     >
-      
-      {/* 1. Secure QR code window box */}
+      {/* 1. Official QR Code Window */}
       <div 
-        className="relative bg-white rounded-xl shadow-xl overflow-hidden flex items-center justify-center"
-        style={{ width: '280px', height: '280px' }}
+        className="relative bg-white p-4 rounded-2xl shadow-xl flex items-center justify-center border border-zinc-200"
       >
-        <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-20' : 'opacity-100'}`}>
-          <QRCodeSVG
-            key={refreshTrigger}
-            value={visiblePayload}
-            size={512}
-            level="H"
-            fgColor="#000000"
-            bgColor="#FFFFFF"
-            includeMargin={false}
-            className="pointer-events-none select-none"
-            style={{ 
-              width: '240px',
-              height: '240px',
-              imageRendering: 'pixelated'
-            }}
-          />
-        </div>
-        {isRefreshing && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-[#E8441A] animate-spin" />
-          </div>
-        )}
+        <QRCodeSVG
+          value={visiblePayload || ticketId}
+          size={220}
+          level="H"
+          fgColor="#000000"
+          bgColor="#FFFFFF"
+          includeMargin={false}
+          className="select-none"
+          style={{ 
+            width: '220px',
+            height: '220px',
+            imageRendering: 'pixelated'
+          }}
+        />
       </div>
 
-      {/* 2. Interactive Timer Progress indicator */}
-      <div className="flex items-center gap-3">
-        {/* Circular progress SVG */}
-        <div className="relative h-9 w-9 flex items-center justify-center shrink-0">
-          <svg className="h-full w-full -rotate-90">
-            {/* Background ring */}
-            <circle
-              cx="18"
-              cy="18"
-              r="14"
-              className="stroke-zinc-800"
-              strokeWidth="3.5"
-              fill="transparent"
-            />
-            {/* Active countdown fill */}
-            <circle
-              cx="18"
-              cy="18"
-              r="14"
-              className="stroke-[#E8441A] transition-all duration-1000 ease-linear"
-              strokeWidth="3.5"
-              fill="transparent"
-              strokeDasharray={`${2 * Math.PI * 14}`}
-              strokeDashoffset={`${((100 - progressPercentage) / 100) * (2 * Math.PI * 14)}`}
-            />
-          </svg>
-          {/* Inner countdown number */}
-          <span className="absolute text-xxs font-extrabold text-[#E8441A]">{timeLeft}</span>
-        </div>
-
-        <div className="flex flex-col text-left">
-          <span className="text-xxs font-bold text-zinc-500 uppercase tracking-widest">
-            Rotating Token
-          </span>
-          <span className="text-xs font-bold text-zinc-300 uppercase flex items-center gap-1.5 mt-0.5">
-            <RefreshCw className="h-3.5 w-3.5 text-[#E8441A] animate-spin-slow" />
-            Auto-Refreshes in {timeLeft}s
-          </span>
-        </div>
+      {/* 2. Pass Information */}
+      <div className="flex flex-col items-center text-center gap-1">
+        <span className="text-xs font-bold text-zinc-200 flex items-center gap-1.5 uppercase tracking-wider">
+          <ShieldCheck className="h-4 w-4 text-[#E8441A]" /> Official Entry Pass
+        </span>
+        <span className="text-[11px] text-zinc-400">
+          Present this QR code at the venue gate for instant check-in.
+        </span>
       </div>
 
-      {/* 3. Helper secure information badge */}
-      <Badge className="bg-[#E8441A]/10 text-[#E8441A] border border-[#E8441A]/15 font-semibold text-xxs px-3 py-1">
-        HMAC-SHA256 DIGITAL ENVELOPE ACTIVE
+      <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold text-[10px] px-3 py-1 flex items-center gap-1">
+        <CheckCircle2 className="h-3 w-3" /> VERIFIED & READY TO SCAN
       </Badge>
-
     </div>
   );
 }
-

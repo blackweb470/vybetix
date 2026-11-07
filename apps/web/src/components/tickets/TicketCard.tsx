@@ -1,31 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
+import Link from 'next/link';
 import QRDisplay from './QRDisplay';
 import { BuyerTicket } from '../../types';
-import { formatDate, formatNaira } from '../../lib/utils';
-import { Calendar, MapPin, QrCode, User, CreditCard, ShieldAlert, Mail, KeyRound, Loader2 } from 'lucide-react';
-import { api } from '../../lib/api';
-import { useToast } from '../ui/toast';
-import { useQueryClient } from '@tanstack/react-query';
-
-// Helper utilities to encode/decode credential IDs for localStorage
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const binary = String.fromCharCode(...new Uint8Array(buffer));
-  return window.btoa(binary);
-}
-
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binary = window.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
+import { formatDate } from '../../lib/utils';
+import { Calendar, MapPin, QrCode, User, Printer, ArrowUpRight, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface TicketCardProps {
   ticket: BuyerTicket;
@@ -33,304 +13,155 @@ interface TicketCardProps {
 
 export default function TicketCard({ ticket }: TicketCardProps) {
   const [showQR, setShowQR] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  
-  // Unlock State
-  const [unlockState, setUnlockState] = useState<'idle' | 'requesting' | 'otp' | 'verifying'>('idle');
-  const [otpValue, setOtpValue] = useState('');
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const handleRequestUnlock = async () => {
-    setUnlockState('requesting');
-    try {
-      await api.post(`/api/tickets/${ticket.id}/request-unlock`);
-      setUnlockState('otp');
-      toast({ title: 'OTP Sent', description: 'Check your email for the unlock code.', variant: 'success' });
-    } catch (error: any) {
-      setUnlockState('idle');
-      toast({ title: 'Failed to request unlock', description: error.response?.data?.message || 'Error requesting unlock.', variant: 'destructive' });
-    }
-  };
-
-  const handleVerifyUnlock = async () => {
-    if (!otpValue || otpValue.length < 6) return;
-    setUnlockState('verifying');
-    try {
-      await api.post(`/api/tickets/${ticket.id}/verify-unlock`, { otp: otpValue });
-      toast({ title: 'Device Unlocked!', description: 'You can now view your ticket.', variant: 'success' });
-      setUnlockState('idle');
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      // Invalidate tickets (since it might be from getMyTickets)
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      // The easiest way to refresh is to reload if the specific query key is complex
-      window.location.reload();
-    } catch (error: any) {
-      setUnlockState('otp');
-      toast({ title: 'Invalid OTP', description: error.response?.data?.message || 'Failed to verify OTP.', variant: 'destructive' });
-    }
-  };
-
-  const handleRevealClick = async () => {
-    if (showQR) {
-      setShowQR(false);
-      return;
-    }
-
-    // If WebAuthn is not supported on this device, just reveal the QR directly
-    if (!window.PublicKeyCredential) {
-      setShowQR(true);
-      return;
-    }
-
-    const credKey = `tixwave_cred_${ticket.id}`
-    let storedCredId = localStorage.getItem(credKey);
-
-    setIsAuthenticating(true);
-    try {
-      // Check if the platform supports biometric/user-verifying authenticators
-      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-      if (!available) {
-        // Device has no fingerprint/face sensor — just show QR
-        setShowQR(true);
-        return;
-      }
-
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-
-      if (!storedCredId) {
-        // Deterministic 16-byte user ID for registration
-        const userIdBytes = new Uint8Array(16);
-        const ticketIdClean = ticket.id.replace(/-/g, '');
-        for (let i = 0; i < 16; i++) {
-          userIdBytes[i] = ticketIdClean.charCodeAt(i % ticketIdClean.length) || 0;
-        }
-
-        // Register a new local (non-resident) platform credential
-        const credential = await navigator.credentials.create({
-          publicKey: {
-            challenge,
-            rp: { name: 'Vybetix', id: window.location.hostname },
-            user: {
-              id: userIdBytes,
-              name: ticket.holder_name,
-              displayName: ticket.holder_name,
-            },
-            pubKeyCredParams: [{ type: 'public-key', alg: -7 }], // ES256
-            authenticatorSelection: {
-              authenticatorAttachment: 'platform',
-              userVerification: 'required',
-              requireResidentKey: false,
-            },
-            timeout: 60000,
-          },
-        } as CredentialCreationOptions) as PublicKeyCredential;
-
-        if (credential) {
-          storedCredId = arrayBufferToBase64(credential.rawId);
-          localStorage.setItem(credKey, storedCredId);
-          setShowQR(true);
-        }
-      } else {
-        // Authenticate using the stored credential ID (re-use the same credential)
-        const result = await navigator.credentials.get({
-          publicKey: {
-            challenge,
-            rpId: window.location.hostname,
-            userVerification: 'required',
-            timeout: 60000,
-            allowCredentials: [
-              {
-                id: base64ToArrayBuffer(storedCredId),
-                type: 'public-key',
-              },
-            ],
-          },
-        } as CredentialRequestOptions);
-
-        if (result) {
-          setShowQR(true);
-        }
-      }
-    } catch (error: any) {
-      if (error?.name === 'NotAllowedError') {
-        console.log('Biometric prompt cancelled by user');
-        return;
-      }
-      // If verification fails or is invalid (e.g. credential was reset/deleted),
-      // we remove the invalid stored ID so we attempt to register a new one next time
-      if (storedCredId) {
-        localStorage.removeItem(credKey);
-      }
-      console.warn('Biometric check skipped/failed:', error?.name, '— showing QR directly');
-      setShowQR(true);
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
 
   // Extract relational metadata
   const event = ticket.ticket_tiers?.events;
-  const tierName = ticket.ticket_tiers?.name || 'Standard Tier';
-  const eventTitle = event?.title || 'Unknown Vibes Session';
+  const tierName = ticket.ticket_tiers?.name || 'Standard Admission';
+  const eventTitle = event?.title || 'Live Experience Session';
   const coverImage = event?.cover_image_url || 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=600';
-  const venue = event?.venue || 'Virtual/Pending venue';
+  const venue = event?.venue || 'Venue to be announced';
+  const eventDateObj = event?.event_date ? new Date(event.event_date) : null;
+
+  const viewPassUrl = `/tickets/view?id=${ticket.id}${ticket.qr_token ? `&token=${encodeURIComponent(ticket.qr_token)}` : ''}`;
+
+  // Formatted date parts
+  const monthName = eventDateObj ? eventDateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase() : 'TBD';
+  const dayNumber = eventDateObj ? eventDateObj.getDate() : '--';
+  const timeString = eventDateObj ? eventDateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '7:00 PM';
+
+  const isUsed = ticket.status === 'used';
+  const isCancelled = ticket.status === 'cancelled';
+  const isActive = ticket.status === 'active';
 
   return (
-    <Card className="flex flex-col border-zinc-800 bg-[#121212]/40 overflow-hidden font-outfit">
-      
-      {/* Visual background image stub */}
-      <div className="relative h-32 w-full overflow-hidden">
+    <div className="relative flex flex-col bg-[#f4f1e9] text-[#161713] rounded-2xl border-2 border-[#161713] shadow-[6px_6px_0px_#161713] overflow-hidden font-['DM_Sans',sans-serif] transition-transform duration-200 hover:-translate-y-1">
+
+      {/* 1. TOP STUB HEADER */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#161713] text-[#f4f1e9] border-b-2 border-[#161713]">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-wider font-['DM_Sans',sans-serif]">
+            VYBETIX<i>✳</i>
+          </span>
+          <span className="text-[9px] text-[#a7a89e] uppercase tracking-widest hidden sm:inline">
+            • ADMISSION PASS
+          </span>
+        </div>
+
+        {/* Tier badge pill */}
+        <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#f7a6c5] text-[#161713] tracking-wider">
+          {tierName}
+        </span>
+      </div>
+
+      {/* 2. POSTER / VISUAL HERO WITH DATE STAMP */}
+      <div className="relative h-40 w-full overflow-hidden bg-[#161713]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={coverImage}
           alt={eventTitle}
-          className="h-full w-full object-cover opacity-60"
+          className="h-full w-full object-cover opacity-90 transition-transform duration-500 hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/45 to-transparent" />
-        
-        {/* Status flags */}
-        <Badge className="absolute top-4 right-4 bg-[#E8441A] font-bold">
-          {tierName}
-        </Badge>
-        {ticket.status === 'used' ? (
-          <Badge variant="warning" className="absolute top-4 left-4">USED / SCANNED</Badge>
-        ) : ticket.status === 'cancelled' ? (
-          <Badge variant="danger" className="absolute top-4 left-4">CANCELLED</Badge>
-        ) : ticket.is_device_mismatch ? (
-          <Badge variant="danger" className="absolute top-4 left-4 flex items-center gap-1">
-            <ShieldAlert className="h-3.5 w-3.5" /> DEVICE LOCKED
-          </Badge>
-        ) : ticket.device_locked ? (
-          <Badge variant="success" className="absolute top-4 left-4 flex items-center gap-1">
-            DEVICE BOUND
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="absolute top-4 left-4">
-            UNBOUND
-          </Badge>
-        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#161713]/80 via-transparent to-transparent" />
+
+        {/* Date stamp box in style of Lewistage */}
+        <div className="absolute top-3 left-3 bg-[#f4f1e9] text-[#161713] border-2 border-[#161713] shadow-[3px_3px_0px_#161713] rounded-lg px-2.5 py-1.5 text-center leading-none">
+          <span className="block text-[9px] font-black uppercase tracking-wider text-[#ff5a24]">{monthName}</span>
+          <span className="block text-2xl font-black font-['Barlow_Condensed',Impact,sans-serif] leading-none my-0.5">{dayNumber}</span>
+          <span className="block text-[8px] font-bold text-[#606257]">{timeString}</span>
+        </div>
+
+        {/* Status Stamp Badge */}
+        <div className="absolute top-3 right-3">
+          {isActive && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#c4db59] text-[#161713] font-black text-[9px] uppercase tracking-wider border border-[#161713] shadow-[2px_2px_0px_#161713]">
+              <Sparkles className="h-2.5 w-2.5" /> ADMIT ONE
+            </span>
+          )}
+          {isUsed && (
+            <span className="inline-block px-2.5 py-1 rounded bg-[#ff5a24] text-white font-black text-[9px] uppercase tracking-wider border border-[#161713] -rotate-3 shadow-[2px_2px_0px_#161713]">
+              SCANNED / USED
+            </span>
+          )}
+          {isCancelled && (
+            <span className="inline-block px-2.5 py-1 rounded bg-zinc-800 text-zinc-400 font-black text-[9px] uppercase tracking-wider border border-zinc-700">
+              CANCELLED
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Details body */}
-      <div className="p-5 flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-base font-bold text-white uppercase tracking-wide font-syne line-clamp-1">
+      {/* 3. TICKET BODY */}
+      <div className="p-4 flex flex-col gap-3">
+        {/* Title */}
+        <div>
+          <h3 className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-2xl uppercase tracking-tight text-[#161713] leading-[1.05] line-clamp-2">
             {eventTitle}
           </h3>
-          
-          <span className="text-xxs font-bold text-[#E8441A] uppercase tracking-widest flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {event?.event_date ? formatDate(event.event_date) : 'Pending Schedule'}
-          </span>
-
-          <span className="text-xs text-zinc-400 flex items-center gap-1 mt-1">
-            <MapPin className="h-3.5 w-3.5 text-zinc-550 shrink-0" />
+          <p className="text-[11px] text-[#606257] flex items-center gap-1 mt-1 font-medium">
+            <MapPin className="h-3.5 w-3.5 text-[#ff5a24] shrink-0" />
             <span className="truncate">{venue}</span>
-          </span>
+          </p>
         </div>
 
-        {/* Holder and payment references table */}
-        <div className="border-t border-b border-zinc-800/60 py-3.5 flex flex-col gap-1.5 text-xs text-zinc-400">
-          <div className="flex justify-between">
-            <span className="font-semibold text-zinc-550 flex items-center gap-1 uppercase tracking-wider text-[10px]">
-              <User className="h-3 w-3" />
-              Holder
+        {/* Holder and Serial Info */}
+        <div className="bg-[#e9e6dd] border border-[#d5d2c6] rounded-xl p-2.5 flex items-center justify-between text-xs">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#737568]">Attendee</span>
+            <span className="font-black text-[#161713] uppercase text-xs truncate max-w-[150px]">
+              {ticket.holder_name}
             </span>
-            <span className="text-zinc-200 font-bold uppercase">{ticket.holder_name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-zinc-550 flex items-center gap-1 uppercase tracking-wider text-[10px]">
-              <CreditCard className="h-3 w-3" />
-              Ref ID
-            </span>
-            <span className="text-zinc-300 font-mono tracking-tighter text-[10px] uppercase truncate max-w-[150px]">
-              {ticket.id.split('-')[0]}-{ticket.order_id.split('-')[0]}
+          <div className="flex flex-col text-right">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#737568]">Pass Ref</span>
+            <span className="font-mono text-[10px] font-bold text-[#161713] uppercase">
+              #{ticket.id.slice(0, 8)}
             </span>
           </div>
         </div>
 
-        {/* Dynamic rotating QR overlay */}
-        {showQR && ticket.status === 'active' && !ticket.is_device_mismatch && ticket.qr_token && (
-          <div className="border-t border-zinc-850 pt-4 animate-in fade-in-40 duration-300">
-            <QRDisplay ticketId={ticket.id} staticToken={ticket.qr_token} />
+        {/* 4. PERFORATED TEAR WITH NOTCHES & BARCODE */}
+        <div className="vyb-tear my-1">
+          <div className="vyb-barcode" />
+          <span className="text-[7px] font-mono font-bold tracking-widest text-[#737568]">GATE PASS</span>
+        </div>
+
+        {/* Collapsible QR Code View */}
+        {showQR && isActive && (
+          <div className="bg-white rounded-xl p-3 border-2 border-[#161713] shadow-[3px_3px_0px_#161713] animate-in fade-in duration-200">
+            <QRDisplay ticketId={ticket.id} staticToken={ticket.qr_token || ticket.id} />
           </div>
         )}
 
-        {/* Device mismatch warning */}
-        {ticket.status === 'active' && ticket.is_device_mismatch && (
-          <div className="flex flex-col gap-2 mt-1 animate-in fade-in-30">
-            <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-200 text-xs">
-              <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-              <div className="flex flex-col gap-0.5 text-left">
-                <p className="font-bold uppercase tracking-wider text-[10px] text-red-400">Device Lock Active</p>
-                <p className="text-zinc-400 text-[11px] leading-relaxed">
-                  This ticket is cryptographically locked to the first device it was opened on. Access on this device is restricted.
-                </p>
-              </div>
-            </div>
-            
-            {unlockState === 'idle' && (
-              <Button variant="outline" onClick={handleRequestUnlock} className="w-full uppercase tracking-widest text-[10px] h-9 bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800">
-                <Mail className="w-3.5 h-3.5 mr-2" /> Request Email Unlock
-              </Button>
-            )}
-            
-            {unlockState === 'requesting' && (
-              <Button disabled variant="outline" className="w-full uppercase tracking-widest text-[10px] h-9 bg-zinc-900 border-zinc-800 text-zinc-500">
-                <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> Sending Email...
-              </Button>
-            )}
+        {/* 5. ACTION BUTTONS */}
+        <div className="flex flex-col gap-2 pt-1">
+          {isActive && (
+            <button
+              onClick={() => setShowQR(!showQR)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#161713] text-[#f4f1e9] hover:bg-[#25261f] text-xs font-black uppercase tracking-wider transition-all border border-[#161713]"
+            >
+              <QrCode className="h-4 w-4 text-[#c4db59]" />
+              {showQR ? 'Hide Gate QR' : 'Show Gate QR Code'}
+            </button>
+          )}
 
-            {(unlockState === 'otp' || unlockState === 'verifying') && (
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                  <input 
-                    type="text" 
-                    placeholder="Enter 6-digit OTP"
-                    value={otpValue}
-                    onChange={(e) => setOtpValue(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 rounded-lg border border-zinc-800 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#E8441A]"
-                  />
-                </div>
-                <Button 
-                  onClick={handleVerifyUnlock} 
-                  disabled={unlockState === 'verifying' || otpValue.length < 6}
-                  className="h-9 px-4 uppercase tracking-widest text-[10px] bg-[#E8441A] hover:bg-[#E8441A]/90 text-white"
-                >
-                  {unlockState === 'verifying' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Verify'}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Reveal QR CTA Button */}
-        {ticket.status === 'active' && !ticket.is_device_mismatch && (
-          <Button
-            variant={showQR ? 'outline' : 'default'}
-            onClick={handleRevealClick}
-            disabled={isAuthenticating}
-            className="w-full uppercase tracking-widest text-[10px] h-10 mt-1"
+          <Link
+            href={viewPassUrl}
+            target="_blank"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#ff5a24] hover:bg-[#e04a1a] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border border-[#161713] shadow-[2px_2px_0px_#161713]"
           >
-            {isAuthenticating ? (
-              <><ShieldAlert className="mr-2 h-4 w-4 animate-pulse text-[#E8441A]" /> Verifying Identity...</>
-            ) : (
-              <><QrCode className="mr-2 h-4 w-4" /> {showQR ? 'Hide Ticket Gate' : 'Reveal Gate Entry (Biometric)'}</>
-            )}
-          </Button>
-        )}
+            <Printer className="h-3.5 w-3.5" />
+            View & Print Full Pass
+            <ArrowUpRight className="h-3.5 w-3.5 ml-auto" />
+          </Link>
+        </div>
 
-        {ticket.status === 'used' && (
-          <div className="text-center py-2 bg-zinc-900 border border-zinc-850 rounded-xl text-xxs font-semibold uppercase tracking-wider text-zinc-500">
-            Checked in on {ticket.scanned_at ? formatDate(ticket.scanned_at, 'MMM d, h:mm a') : 'Gate Scan'}
+        {isUsed && (
+          <div className="text-center py-2 bg-[#e7e4db] rounded-lg text-[10px] font-black uppercase tracking-wider text-[#606257] border border-[#d5d2c6]">
+            Checked in at gate • {ticket.scanned_at ? formatDate(ticket.scanned_at, 'MMM d, h:mm a') : 'Scanned'}
           </div>
         )}
       </div>
 
-    </Card>
+    </div>
   );
 }
-
