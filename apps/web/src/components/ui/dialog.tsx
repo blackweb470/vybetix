@@ -43,30 +43,28 @@ export function Dialog({ isOpen, onClose, title, children, className }: DialogPr
         )}
       >
         {/* Dialog Header Block */}
-        {(title || onClose) && (
-          <div className={cn("flex items-center justify-between pb-2", title ? "border-b border-zinc-800/60 mb-3" : "absolute top-4 right-4 z-20")}>
-            {title && (
-              <h2 className="text-lg font-bold uppercase tracking-wide font-syne text-[#E8441A]">
-                {title}
-              </h2>
-            )}
-            <button
-              onClick={onClose}
-              aria-label="Close modal"
-              className="rounded-lg p-1.5 text-zinc-600 hover:text-[#161713] hover:bg-black/5 transition-colors duration-200 focus:outline-none"
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-4 mb-4">
+          {title && (
+            <h2 className="text-lg font-bold uppercase tracking-wide font-syne text-[#E8441A]">
+              {title}
+            </h2>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="Close modal"
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-850 hover:text-white transition-colors duration-200 focus:outline-none"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        )}
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
         {/* Dialog body content */}
         <div className="max-h-[75vh] overflow-y-auto pr-1">{children}</div>
