@@ -1,5 +1,3 @@
-import PaystackPop from '@paystack/inline-js';
-
 export interface PaystackCheckoutOptions {
   email: string;
   amount: number; // In kobo
@@ -11,12 +9,17 @@ export interface PaystackCheckoutOptions {
 
 /**
  * Triggers the standard Paystack Inline Popup inside the buyer's browser.
+ * Loads @paystack/inline-js dynamically to avoid SSR "window is not defined" build crashes.
  */
-export function openPaystackCheckout(options: PaystackCheckoutOptions) {
+export async function openPaystackCheckout(options: PaystackCheckoutOptions) {
+  if (typeof window === 'undefined') return;
+
   const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_mock_public_key_12345';
   
   try {
-    const paystack = new PaystackPop();
+    const mod = await import('@paystack/inline-js');
+    const PaystackPop = (mod as any).default || mod;
+    const paystack = new (PaystackPop as any)();
     const config: any = {
       key: publicKey,
       onSuccess: (transaction: any) => {
@@ -41,7 +44,8 @@ export function openPaystackCheckout(options: PaystackCheckoutOptions) {
     paystack.newTransaction(config);
   } catch (err) {
     console.error('Failed to boot Paystack Popup checkout:', err);
-    alert('Failed to boot payment gateway. Please ensure your network connection is stable.');
+    if (typeof alert !== 'undefined') {
+      alert('Failed to boot payment gateway. Please ensure your network connection is stable.');
+    }
   }
 }
-
