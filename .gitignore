@@ -9,3 +9,4 @@ dist/
 apps/api/.env
 apps/web/.env
 .DS_Store
+send-update-email.mjs
