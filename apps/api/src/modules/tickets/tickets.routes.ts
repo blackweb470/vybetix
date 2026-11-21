@@ -17,7 +17,7 @@ router.post('/:id/verify-unlock', authMiddleware, ticketsController.verifyUnlock
 router.get('/:id/qr-token', authMiddleware, ticketsController.refreshQR);
 
 // Organizer and gate staff QR decoding and validation endpoints
-router.get('/organizer', authMiddleware, requireRole(['organizer', 'admin']), ticketsController.getOrganizerTickets);
+router.get('/organizer', authMiddleware, requireRole(['organizer', 'admin', 'buyer']), ticketsController.getOrganizerTickets);
 router.get('/decode', authMiddleware, requireRole(['organizer', 'admin', 'gate_staff']), ticketsController.getTicketByQR);
 router.post('/validate', authMiddleware, requireRole(['organizer', 'admin', 'gate_staff']), ticketsController.validateTicket);
 

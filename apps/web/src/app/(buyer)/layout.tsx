@@ -19,15 +19,12 @@ export default function BuyerLayout({ children }: { children: React.ReactNode })
     if (mounted) {
       if (!isAuthenticated) {
         window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
-      } else if (user?.role !== 'buyer' && user?.role !== 'gate_staff') {
-        // Forbidden to non-buyer accounts
-        window.location.href = '/';
       }
     }
   }, [mounted, isAuthenticated, user, router, pathname]);
 
   // Prevent flash or hydration mismatch issues
-  if (!mounted || !isAuthenticated || (user?.role !== 'buyer' && user?.role !== 'gate_staff')) {
+  if (!mounted || !isAuthenticated) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#0D0D0D] py-36">
         <Disc className="h-10 w-10 text-[#E8441A] animate-spin" />

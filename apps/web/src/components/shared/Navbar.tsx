@@ -15,8 +15,13 @@ export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Home page uses the user's bespoke landing page header
-  if (pathname === '/') {
+  // 1b.html canonical pages use their bespoke flowheader & navigation
+  if (
+    pathname === '/' ||
+    pathname.startsWith('/events') ||
+    pathname === '/login' ||
+    pathname === '/register'
+  ) {
     return null;
   }
 

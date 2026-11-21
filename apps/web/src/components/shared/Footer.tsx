@@ -8,8 +8,13 @@ import { Ticket, Mail, ShieldCheck, Printer, ArrowUpRight } from 'lucide-react';
 export default function Footer() {
   const pathname = usePathname();
 
-  // Home page uses the bespoke landing page footer
-  if (pathname === '/') {
+  // 1b.html canonical pages use their bespoke flowfooter
+  if (
+    pathname === '/' ||
+    pathname.startsWith('/events') ||
+    pathname === '/login' ||
+    pathname === '/register'
+  ) {
     return null;
   }
   return (

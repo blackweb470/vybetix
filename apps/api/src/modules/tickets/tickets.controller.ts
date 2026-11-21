@@ -37,14 +37,25 @@ async function checkStaffAuthorization(userId: string, eventId: string): Promise
 
 // 1. Zod Validation Schemas
 const attendeeSchema = z.object({
-  name: z.string().min(2, 'Holder name must be at least 2 characters'),
-  email: z.string().email('Holder email must be valid'),
-  phone: z.string().regex(/^\+234[789][01]\d{8}$/, 'Holder phone must be a valid Nigerian number (+23480...)')
+  name: z.string().trim().min(1, 'Holder name is required'),
+  email: z.string().trim().email('Holder email must be valid'),
+  phone: z.string().transform((val) => {
+    let cleaned = (val || '').replace(/[\s\-()]/g, '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '+234' + cleaned.slice(1);
+    } else if (cleaned.startsWith('234')) {
+      cleaned = '+' + cleaned;
+    } else if (!cleaned.startsWith('+')) {
+      cleaned = '+234' + cleaned;
+    }
+    return cleaned;
+  })
 });
 
 export const checkoutSchema = z.object({
-  tierId: z.string().uuid('Invalid ticket tier ID'),
-  quantity: z.number().int().positive('Quantity must be at least 1').max(5, 'Maximum of 5 tickets per order'),
+  tierId: z.string().min(1, 'Invalid ticket tier ID'),
+  eventId: z.string().optional(),
+  quantity: z.number().int().positive('Quantity must be at least 1').max(10, 'Maximum of 10 tickets per order'),
   attendees: z.array(attendeeSchema).min(1, 'At least one attendee is required')
 });
 
@@ -55,6 +66,7 @@ export const ticketsController = {
    */
   initCheckout: async (req: AuthRequest, res: Response) => {
     try {
+      console.log('[initCheckout payload]:', JSON.stringify(req.body));
       const parsedData = checkoutSchema.parse(req.body);
 
       // Support both authenticated users and guest checkouts
@@ -90,7 +102,7 @@ export const ticketsController = {
         } else {
           // Provision guest account in Supabase auth and public.users
           try {
-            const { data: newAuthUser } = await supabase.auth.admin.createUser({
+            const { data: newAuthUser, error: createAuthError } = await supabase.auth.admin.createUser({
               email: buyerEmail,
               email_confirm: true,
               user_metadata: { full_name: buyerName }
@@ -108,39 +120,91 @@ export const ticketsController = {
                   role: 'buyer'
                 }, { onConflict: 'id' });
             } else {
-              throw new Error('Could not create auth user');
+              throw createAuthError || new Error('Could not create auth user');
             }
-          } catch (provisionErr) {
-            // Fallback: standalone row in public.users
-            const fallbackId = crypto.randomUUID();
-            const { data: fallbackUser, error: fbErr } = await supabase
+          } catch (provisionErr: any) {
+            console.log('[Guest Checkout] Account notice:', provisionErr?.message);
+            // If user already exists in auth.users, resolve by listing or fallback
+            let resolvedId: string | null = null;
+            try {
+              const { data: listData } = await supabase.auth.admin.listUsers();
+              const found = listData?.users?.find((u: any) => u.email?.toLowerCase() === buyerEmail);
+              if (found) resolvedId = found.id;
+            } catch (_) {}
+
+            buyerId = resolvedId || crypto.randomUUID();
+            await supabase
               .from('users')
-              .insert({
-                id: fallbackId,
+              .upsert({
+                id: buyerId,
                 email: buyerEmail,
                 full_name: buyerName,
                 phone: buyerPhone,
                 role: 'buyer'
-              })
-              .select('id')
-              .single();
-
-            if (fbErr || !fallbackUser) {
-              return error(res, 'Guest checkout failed', 'Could not provision guest account for ticket delivery', 500);
-            }
-            buyerId = fallbackUser.id;
+              }, { onConflict: 'id' });
           }
         }
       }
 
       // 1. Retrieve Ticket Tier Details
-      const { data: tier, error: tierError } = await supabase
-        .from('ticket_tiers')
-        .select('*, events(*)')
-        .eq('id', parsedData.tierId)
-        .single();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parsedData.tierId);
+      let tier: any = null;
 
-      if (tierError || !tier) {
+      if (isUuid) {
+        const { data: dbTier } = await supabase
+          .from('ticket_tiers')
+          .select('*, events(*)')
+          .eq('id', parsedData.tierId)
+          .maybeSingle();
+        tier = dbTier;
+      }
+
+      // If tier was not found by UUID, try to find or auto-provision via eventId
+      const targetEventId = parsedData.eventId || req.body.eventId;
+      if (!tier && targetEventId) {
+        const isEvUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetEventId);
+        let eventData: any = null;
+
+        if (isEvUuid) {
+          const { data: dbEv } = await supabase.from('events').select('*').eq('id', targetEventId).maybeSingle();
+          eventData = dbEv;
+        } else {
+          const { data: dbEv } = await supabase.from('events').select('*').eq('slug', targetEventId).maybeSingle();
+          eventData = dbEv;
+        }
+
+        if (eventData) {
+          const { data: existingTiers } = await supabase
+            .from('ticket_tiers')
+            .select('*, events(*)')
+            .eq('event_id', eventData.id)
+            .order('price', { ascending: true })
+            .limit(1);
+
+          if (existingTiers && existingTiers.length > 0) {
+            tier = existingTiers[0];
+          } else {
+            // Auto-provision a free admission tier for this event
+            const newTierId = crypto.randomUUID();
+            const { data: newTier } = await supabase
+              .from('ticket_tiers')
+              .insert({
+                id: newTierId,
+                event_id: eventData.id,
+                name: 'Free Admission',
+                description: 'Official free pass',
+                price: 0,
+                quantity: 1000,
+                sold: 0
+              })
+              .select('*, events(*)')
+              .single();
+            tier = newTier;
+          }
+        }
+      }
+
+      if (!tier) {
         return error(res, 'Tier not found', 'The specified ticket tier does not exist', 404);
       }
 
@@ -314,10 +378,11 @@ export const ticketsController = {
 
     } catch (err: any) {
       if (err instanceof z.ZodError) {
+        console.error('[initCheckout Validation Error]:', err.errors);
         return error(res, 'Validation failed', err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '), 400);
       }
-      console.error('Checkout error:', err);
-      return error(res, 'Checkout error', err.message, 500);
+      console.error('[initCheckout General Error]:', err);
+      return error(res, 'Checkout error', err.message, 400);
     }
   },
 

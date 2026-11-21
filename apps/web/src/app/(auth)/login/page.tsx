@@ -7,18 +7,25 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../components/ui/toast';
 import Link from 'next/link';
-import { Disc, LogIn, ArrowRight, Eye, EyeOff, Sparkles, ShieldCheck } from 'lucide-react';
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isLoggingIn } = useAuth();
+  const { login, isLoggingIn, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const redirectUrl = searchParams.get('redirect') || '/';
+  const [showForgotInfo, setShowForgotInfo] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const redirectUrl = searchParams.get('redirect') || '';
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      window.location.href = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+    }
+  }, [isAuthenticated, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,148 +33,162 @@ function LoginContent() {
       toast({ title: 'Credentials required', description: 'Please enter your email and password', variant: 'destructive' });
       return;
     }
+    setIsSubmitting(true);
     try {
       const session = await login({ email, password });
       toast({ title: 'Welcome Back!', description: `Signed in as ${session.user.full_name}`, variant: 'success' });
 
-      let targetUrl = redirectUrl;
-      if (targetUrl === '/') {
-        if (session.user.role === 'organizer') {
-          targetUrl = '/dashboard';
-        } else if (session.user.role === 'admin') {
-          targetUrl = '/admin';
-        } else {
-          targetUrl = '/tickets';
-        }
-      }
-
+      const targetUrl = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
       window.location.href = targetUrl;
     } catch (err: any) {
+      setIsSubmitting(false);
       toast({ title: 'Login failed', description: err.response?.data?.message || err.message || 'No account found for this email', variant: 'destructive' });
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#161713] text-[#161713] font-['DM_Sans',sans-serif] flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-[#ff5a24] selection:text-[#161713]">
-
-      {/* Brand Logo */}
-      <Link href="/" className="mb-6 flex items-center">
-        <span className="text-3xl font-black tracking-tight text-[#f4f1e9] uppercase">
-          vybetix<i className="not-italic text-[#ff5a24] ml-0.5">✳</i>
-        </span>
-      </Link>
-
-      {/* Collectible Paper Card */}
-      <div className="w-full max-w-md bg-[#f4f1e9] rounded-3xl border-2 border-[#161713] shadow-[8px_8px_0px_#161713] p-6 sm:p-8">
-
-        {/* Top Header */}
-        <div className="border-b-2 border-[#161713] pb-4 mb-6">
-          <div className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24] flex items-center gap-1">
-            <Sparkles className="h-3 w-3" /> ACCESS YOUR PASSES
-          </div>
-          <h1 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-4xl text-[#161713] tracking-tight leading-none mt-1">
-            SIGN IN TO VYBETIX.
-          </h1>
-          <p className="text-xs text-[#606257] mt-1.5 font-medium">
-            Manage your permanent gate passes and tickets.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-[#737568] block mb-1">
-              Email Address
-            </label>
-            <input
-              type="email"
-              id="vybetix-login-email"
-              name="email"
-              autoComplete="username"
-              placeholder="you@example.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#ffffff] border-2 border-[#161713] rounded-xl px-4 py-3 text-sm text-[#161713] font-medium placeholder-[#a7a89e] focus:outline-none focus:border-[#ff5a24]"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] font-black uppercase tracking-wider text-[#737568]">
-                Password
-              </label>
-              <Link href="/forgot-password" className="text-[10px] font-bold text-[#ff5a24] uppercase tracking-wider hover:underline">
-                Forgot?
-              </Link>
-            </div>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="vybetix-login-password"
-                name="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#ffffff] border-2 border-[#161713] rounded-xl px-4 py-3 pr-12 text-sm text-[#161713] font-medium placeholder-[#a7a89e] focus:outline-none focus:border-[#ff5a24]"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-0 h-full px-3.5 flex items-center justify-center text-[#737568] hover:text-[#161713]"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoggingIn}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-[#ff5a24] hover:bg-[#e04a1a] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border-2 border-[#161713] shadow-[3px_3px_0px_#161713] mt-2"
+    <div className="min-h-screen bg-[#10100f] text-[#f1ede4] font-['DM_Sans',sans-serif] selection:bg-[#ff5a24] selection:text-[#10100f]">
+      <div className="wrap auth-wrap py-8">
+        <div className="auth-layout">
+          {/* Left Story Panel */}
+          <aside
+            className="auth-story"
+            style={{ backgroundImage: `url('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1200')` }}
           >
-            {isLoggingIn ? (
-              <Disc className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                CONTINUE TO VAULT <span className="text-base leading-none">↗</span>
-              </>
-            )}
-          </button>
+            <div className="auth-story-top">VYBETIX / YOUR NEXT CHAPTER</div>
+            <div className="auth-story-copy">
+              <span className="floweyebrow">BACK FOR ANOTHER NIGHT</span>
+              <h2>
+                GOOD TO<br />
+                HAVE YOU<br />
+                BACK.
+              </h2>
+              <p>Discover the music, the people, and the plans that make showing up worth it.</p>
+            </div>
+            <div className="auth-story-foot">
+              <span>REAL LIFE. FULL VOLUME.</span>
+              <span>01 / THE NEXT SCENE</span>
+            </div>
+          </aside>
 
-          {/* Perforated tear with barcode */}
-          <div className="vyb-tear my-1">
-            <div className="vyb-barcode" />
-            <span className="text-[7px] font-mono font-bold tracking-widest text-[#737568]">SECURE</span>
-          </div>
-
-          <div className="text-center pt-1">
-            <span className="text-xs text-[#606257]">Don't have an account yet? </span>
-            <Link
-              href={`/register?redirect=${encodeURIComponent(redirectUrl)}`}
-              className="text-xs font-black text-[#161713] underline decoration-[#ff5a24] decoration-2 uppercase tracking-wide hover:text-[#ff5a24]"
-            >
-              Sign Up ↗
+          {/* Right Form Panel */}
+          <section className="auth-panel">
+            <Link className="auth-back" href="/#explore">
+              ← Back to events
             </Link>
-          </div>
 
-        </form>
+            <div className="auth-heading">
+              <div className="floweyebrow">YOUR VYBETIX ACCOUNT</div>
+              <h1 tabIndex={-1}>Welcome back.</h1>
+              <p>
+                New around here?{' '}
+                <Link href="/register">Create an account ↗</Link>
+              </p>
+            </div>
 
+            <form id="auth-form" autoComplete="off" onSubmit={handleSubmit}>
+              <div id="auth-fields">
+                <label className="auth-label" htmlFor="auth-email">
+                  Email address
+                </label>
+                <input
+                  className="auth-input"
+                  id="auth-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+
+                <label className="auth-label" htmlFor="auth-password">
+                  Password
+                </label>
+                <div className="auth-password">
+                  <input
+                    className="auth-input"
+                    id="auth-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    aria-controls="auth-password"
+                    aria-label="Show password"
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                <div className="auth-utilities">
+                  <span>Secure session</span>
+                  <button
+                    type="button"
+                    id="forgot-demo"
+                    onClick={() => setShowForgotInfo(true)}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                {showForgotInfo && (
+                  <p id="reset-info" className="auth-hint" role="status">
+                    To reset your password, contact support or use your registered recovery email.
+                  </p>
+                )}
+
+                <button
+                  className="btn auth-submit"
+                  type="submit"
+                  disabled={isLoggingIn || isSubmitting}
+                  style={{
+                    opacity: (isLoggingIn || isSubmitting) ? 0.75 : 1,
+                    cursor: (isLoggingIn || isSubmitting) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {(isLoggingIn || isSubmitting) ? (
+                    <span className="flex items-center justify-center gap-2 w-full">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Signing in...</span>
+                    </span>
+                  ) : (
+                    <>
+                      <span>Sign in</span>{' '}
+                      <span className="arrow">↗</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            <div className="auth-bottom">
+              VYBETIX / STARRING YOU. DIRECTED BY THE NIGHT.
+            </div>
+          </section>
+        </div>
       </div>
-
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#161713] flex flex-col items-center justify-center p-6 text-[#f4f1e9] font-['DM_Sans',sans-serif]">
-        <Disc className="h-10 w-10 text-[#ff5a24] animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#10100f] flex items-center justify-center p-6 text-[#f1ede4]">
+          <div className="flower" />
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

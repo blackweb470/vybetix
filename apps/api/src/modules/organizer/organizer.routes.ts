@@ -5,9 +5,9 @@ import { requireRole } from '../../middleware/roleGuard';
 
 const router = Router();
 
-// Require authenticated session belonging to either an active organizer or system administrator
-router.get('/dashboard', authMiddleware, requireRole(['organizer', 'admin']), organizerController.getDashboard);
-router.get('/events', authMiddleware, requireRole(['organizer', 'admin']), organizerController.getMyEvents);
+// Require authenticated session (organizer, admin, or buyer viewing their creator portal)
+router.get('/dashboard', authMiddleware, requireRole(['organizer', 'admin', 'buyer']), organizerController.getDashboard);
+router.get('/events', authMiddleware, requireRole(['organizer', 'admin', 'buyer']), organizerController.getMyEvents);
 router.get('/attendees/:eventId', authMiddleware, requireRole(['organizer', 'admin']), organizerController.getAttendees);
 router.post('/payout', authMiddleware, requireRole(['organizer', 'admin']), organizerController.requestPayout);
 

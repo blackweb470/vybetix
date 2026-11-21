@@ -5,6 +5,7 @@ import { BuyerTicket } from '../types';
 
 interface CheckoutInput {
   tierId: string;
+  eventId?: string;
   quantity: number;
   attendees: {
     name: string;

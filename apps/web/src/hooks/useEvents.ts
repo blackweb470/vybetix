@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { useAuthStore } from '../store/authStore';
 import { EventDetail } from '../types';
 
 interface EventFilters {
@@ -94,13 +95,16 @@ export function useUniversities() {
 }
 
 export function useOrganizerEvents() {
+  const token = useAuthStore((s) => s.token);
   return useQuery({
-    queryKey: ['organizer-events'],
+    queryKey: ['organizer-events', token],
     queryFn: async () => {
       const res = await api.get('/api/organizer/events');
-      return res.data.data as EventDetail[];
+      return (res.data.data || []) as EventDetail[];
     },
+    enabled: !!token,
     staleTime: 1000 * 60 * 2, // 2 minutes
+    retry: 2,
   });
 }
 

@@ -112,9 +112,9 @@ export async function fulfillOrder(orderId: string, tierId: string, attendees: {
           await sendTicketConfirmationEmail({
             email: email,
             holderName: data.name,
-            eventTitle: order.events.title,
-            venue: order.events.venue,
-            eventDate: order.events.event_date,
+            eventTitle: order.events?.title || 'Vybetix Live Pass',
+            venue: order.events?.venue || 'Venue',
+            eventDate: order.events?.event_date || new Date().toISOString(),
             tickets: data.tickets
           });
         } catch (mailError) {
@@ -122,7 +122,7 @@ export async function fulfillOrder(orderId: string, tierId: string, attendees: {
         }
 
         try {
-          await sendTicketWhatsAppNotification(data.phone, data.name, order.events.title);
+          await sendTicketWhatsAppNotification(data.phone, data.name, order.events?.title || 'Vybetix Live Pass');
         } catch (waError) {
           console.error(`[Fulfillment Warning] WhatsApp dispatch failed for ${data.phone}:`, waError);
         }

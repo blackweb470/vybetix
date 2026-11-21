@@ -10,7 +10,7 @@ import { useToast } from '../../../components/ui/toast';
 
 export default function OrganizerDashboardPage() {
   const { user } = useAuth();
-  const { data: events, isLoading, error } = useOrganizerEvents();
+  const { data: events, isLoading, error, refetch } = useOrganizerEvents();
   const { toast } = useToast();
   const [mounted, setMounted] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<'live' | 'past'>('live');
@@ -108,13 +108,13 @@ export default function OrganizerDashboardPage() {
               <LayoutGrid className="h-5 w-5 text-[#E8441A]" />My Hosted Events
             </h2>
             <div className="flex items-center bg-zinc-900/50 p-1 rounded-xl">
-              <button 
+              <button
                 onClick={() => setActiveTab('live')}
                 className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'live' ? 'bg-[#E8441A] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                 Live ({liveEvents.length})
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('past')}
                 className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'past' ? 'bg-[#E8441A] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
@@ -134,8 +134,16 @@ export default function OrganizerDashboardPage() {
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Loading events...</span>
           </div>
         ) : error ? (
-          <div className="text-center py-16 border border-dashed border-zinc-900 rounded-3xl">
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Failed to load. Please refresh.</p>
+          <div className="text-center py-16 border border-dashed border-zinc-900 rounded-3xl flex flex-col items-center gap-3">
+            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wide">
+              {(error as any)?.response?.data?.error || (error as any)?.response?.data?.message || (error as any)?.message || 'Failed to load. Please refresh.'}
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-xs font-black uppercase tracking-widest text-[#E8441A] transition-all"
+            >
+              Retry Sync
+            </button>
           </div>
         ) : displayedEvents && displayedEvents.length > 0 ? (
           <div className="flex flex-col gap-3">

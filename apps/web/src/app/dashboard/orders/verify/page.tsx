@@ -35,11 +35,12 @@ function OrderVerifyContent() {
         const generatedTickets = data?.tickets || [];
         setTickets(generatedTickets);
 
+        const isFree = data?.order?.total_amount === 0;
         setStatus('success');
         setMessage(
           token
-            ? 'Your admission pass has been confirmed and added to your Ticket Vault!'
-            : 'Payment confirmed! Your permanent admission passes with QR codes are ready.'
+            ? (isFree ? 'Your free admission pass has been claimed and added to your Ticket Vault!' : 'Your admission pass has been confirmed and added to your Ticket Vault!')
+            : (isFree ? 'Free passes confirmed! Your permanent admission passes with QR codes are ready.' : 'Payment confirmed! Your permanent admission passes with QR codes are ready.')
         );
 
         if (token) {
@@ -76,7 +77,7 @@ function OrderVerifyContent() {
           <div className="flex flex-col items-center gap-3 my-2">
             <Disc className="h-12 w-12 text-[#ff5a24] animate-spin" />
             <span className="text-[10px] font-black uppercase tracking-wider text-[#737568]">
-              Confirming with Paystack...
+              Confirming order details...
             </span>
           </div>
         )}

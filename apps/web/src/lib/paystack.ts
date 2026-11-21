@@ -3,6 +3,7 @@ export interface PaystackCheckoutOptions {
   amount: number; // In kobo
   reference: string;
   accessCode?: string;
+  authorizationUrl?: string;
   onSuccess: (transaction: any) => void;
   onCancel: () => void;
 }
@@ -22,6 +23,10 @@ export async function openPaystackCheckout(options: PaystackCheckoutOptions) {
     const paystack = new (PaystackPop as any)();
     const config: any = {
       key: publicKey,
+      email: options.email,
+      amount: options.amount,
+      ref: options.reference,
+      currency: 'NGN',
       onSuccess: (transaction: any) => {
         console.log('Paystack transaction successful:', transaction);
         options.onSuccess(transaction);
@@ -34,16 +39,15 @@ export async function openPaystackCheckout(options: PaystackCheckoutOptions) {
 
     if (options.accessCode) {
       config.accessCode = options.accessCode;
-    } else {
-      config.email = options.email;
-      config.amount = options.amount;
-      config.ref = options.reference;
-      config.currency = 'NGN';
     }
 
     paystack.newTransaction(config);
   } catch (err) {
     console.error('Failed to boot Paystack Popup checkout:', err);
+    if (options.authorizationUrl) {
+      window.location.href = options.authorizationUrl;
+      return;
+    }
     if (typeof alert !== 'undefined') {
       alert('Failed to boot payment gateway. Please ensure your network connection is stable.');
     }

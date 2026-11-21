@@ -68,7 +68,18 @@ export const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
   fullName: z.string().min(2, 'Full name must be at least 2 characters long'),
-  phone: z.string().regex(/^\+234[789][01]\d{8}$/, 'Nigerian phone number must match format: +2348012345678'),
+  phone: z.string().optional().transform((val) => {
+    if (!val || !val.trim()) return '+2348000000000';
+    let cleaned = val.replace(/[\s-]/g, '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '+234' + cleaned.slice(1);
+    } else if (cleaned.startsWith('234')) {
+      cleaned = '+' + cleaned;
+    } else if (!cleaned.startsWith('+')) {
+      cleaned = '+234' + cleaned;
+    }
+    return cleaned;
+  }),
   role: z.enum(['buyer', 'organizer'] as const).default('buyer'),
   business_name: z.string().optional(),
   bank_name: z.string().optional(),
@@ -119,6 +130,13 @@ export const authController = {
       }
 
       const userId = authData.user.id;
+
+      // Ensure user email is confirmed so session is immediately active
+      try {
+        await supabase.auth.admin.updateUserById(userId, { email_confirm: true });
+      } catch (confirmErr) {
+        // non-fatal
+      }
 
       // 2. Wait for the Supabase trigger to sync the new auth user into public.users
       // The trigger is asynchronous — retry up to 6 times over 3 seconds
@@ -201,9 +219,24 @@ export const authController = {
         }
       }
 
+      let activeSession = authData.session;
+      if (!activeSession) {
+        try {
+          const { data: signInData } = await authClient.auth.signInWithPassword({
+            email: parsedBody.email,
+            password: parsedBody.password
+          });
+          if (signInData?.session) {
+            activeSession = signInData.session;
+          }
+        } catch (signInErr) {
+          console.error('Auto-login session generation error:', signInErr);
+        }
+      }
+
       return success(res, {
         user: dbUser,
-        session: authData.session
+        session: activeSession
       }, 'User registered successfully!', 201);
 
     } catch (err: any) {

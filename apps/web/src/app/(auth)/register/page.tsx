@@ -8,25 +8,25 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../components/ui/toast';
 import { api } from '../../../lib/api';
 import Link from 'next/link';
-import { Disc, UserPlus, Ticket, Building2, CheckCircle2, AlertCircle, Eye, EyeOff, Mail, Sparkles } from 'lucide-react';
-import { SearchableSelect } from '../../../components/ui/searchable-select';
 
 interface Bank {
   name: string;
   code: string;
 }
 
-const ROLE_OPTIONS = [
-  { value: 'buyer', label: 'Ticket Buyer', sub: 'Discover & attend events', icon: Ticket },
-  { value: 'organizer', label: 'Event Organizer', sub: 'Host events & collect payouts', icon: Building2 },
-];
-
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { register, isRegistering } = useAuth();
+  const { register, isRegistering, isAuthenticated } = useAuth();
   const { toast } = useToast();
-  const redirectUrl = searchParams.get('redirect') || '/';
+  const redirectUrl = searchParams.get('redirect') || '';
+  const roleParam = searchParams.get('role');
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      window.location.href = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+    }
+  }, [isAuthenticated, redirectUrl]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,317 +35,348 @@ function RegisterContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'buyer' | 'organizer'>('buyer');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [role, setRole] = useState<'buyer' | 'organizer'>(roleParam === 'organizer' ? 'organizer' : 'buyer');
   const [businessName, setBusinessName] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
   const [banks, setBanks] = useState<Bank[]>([]);
-  const [loadingBanks, setLoadingBanks] = useState(false);
-  const [resolvingAccount, setResolvingAccount] = useState(false);
-  const [accountError, setAccountError] = useState('');
-  const [successData, setSuccessData] = useState<{ targetUrl: string; countdown: number } | null>(null);
+
+  useEffect(() => {
+    if (roleParam === 'organizer') {
+      setRole('organizer');
+    }
+  }, [roleParam]);
 
   useEffect(() => {
     if (role === 'organizer') {
       const fetchBanks = async () => {
-        setLoadingBanks(true);
         try {
           const { data } = await api.get('/api/payments/banks');
           if (data.success) {
             setBanks(data.data);
           }
         } catch (error) {
-          console.error("Error fetching banks:", error);
-        } finally {
-          setLoadingBanks(false);
+          console.error('Error fetching banks:', error);
         }
       };
-      if (banks.length === 0) fetchBanks();
+      fetchBanks();
     }
-  }, [role, banks.length]);
-
-  useEffect(() => {
-    const resolveAccount = async () => {
-      if (bankName && accountNumber.length === 10) {
-        setResolvingAccount(true);
-        setAccountError('');
-        setAccountName('');
-        try {
-          const bankCode = bankName.split(':')[0];
-          const { data } = await api.post('/api/payments/resolve-account', {
-            account_number: accountNumber,
-            bank_code: bankCode
-          });
-          if (data.success && data.data.account_name) {
-            setAccountName(data.data.account_name);
-          } else {
-            setAccountError('Account could not be verified');
-          }
-        } catch (error: any) {
-          setAccountError(error.response?.data?.message || 'Invalid account details');
-        } finally {
-          setResolvingAccount(false);
-        }
-      }
-    };
-    resolveAccount();
-  }, [bankName, accountNumber]);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (successData && successData.countdown > 0) {
-      timer = setTimeout(() => {
-        setSuccessData(prev => prev ? { ...prev, countdown: prev.countdown - 1 } : null);
-      }, 1000);
-    } else if (successData && successData.countdown === 0) {
-      window.location.href = successData.targetUrl;
-    }
-    return () => clearTimeout(timer);
-  }, [successData]);
+  }, [role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !fullName || !phone) {
-      toast({ title: 'Missing details', description: 'Please complete all required fields', variant: 'destructive' });
-      return;
-    }
+
     if (password !== confirmPassword) {
-      toast({ title: 'Passwords do not match', description: 'Please check your passwords', variant: 'destructive' });
+      toast({ title: 'Passwords do not match', description: 'Please make sure your passwords match', variant: 'destructive' });
       return;
     }
 
-    let formattedPhone = phone.trim();
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+234' + formattedPhone.slice(1);
-    } else if (!formattedPhone.startsWith('+')) {
-      formattedPhone = '+234' + formattedPhone;
-    }
-
-    if (!/^\+234[789][01]\d{8}$/.test(formattedPhone)) {
-      toast({ title: 'Invalid phone', description: 'Phone must be a valid Nigerian number', variant: 'destructive' });
+    if (password.length < 8) {
+      toast({ title: 'Password too weak', description: 'Password must be at least 8 characters long', variant: 'destructive' });
       return;
     }
 
-    if (role === 'organizer' && (!businessName || !bankName || !accountNumber || !accountName)) {
-      toast({ title: 'Banking info required', description: 'Please complete business and bank details', variant: 'destructive' });
-      return;
-    }
-
+    setIsSubmitting(true);
     try {
-      const payload = {
-        email, password, fullName, phone: formattedPhone, role,
-        ...(role === 'organizer' ? { business_name: businessName, bank_name: bankName, account_number: accountNumber, account_name: accountName } : {})
-      };
-      await register(payload);
-      setSuccessData({ targetUrl: '/login', countdown: 5 });
+      let normalizedPhone = '+2348000000000';
+      if (phone?.trim()) {
+        let d = phone.replace(/\D/g, '');
+        if (d.startsWith('234')) d = d.slice(3);
+        d = d.replace(/^0+/, '');
+        if (d) normalizedPhone = `+234${d}`;
+      }
+
+      await register({
+        email,
+        password,
+        fullName,
+        phone: normalizedPhone,
+        role,
+        business_name: role === 'organizer' ? businessName || fullName : undefined,
+        bank_name: role === 'organizer' ? bankName : undefined,
+        account_number: role === 'organizer' ? accountNumber : undefined,
+        account_name: role === 'organizer' ? accountName : undefined,
+      });
+
+      toast({
+        title: 'Account created!',
+        description: 'Welcome to Vybetix! Taking you to your dashboard.',
+        variant: 'success',
+      });
+
+      const target = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+      window.location.href = target;
     } catch (err: any) {
-      toast({ title: 'Signup failed', description: err.response?.data?.message || err.message || 'Email might already be registered', variant: 'destructive' });
+      setIsSubmitting(false);
+      toast({
+        title: 'Registration failed',
+        description: err.response?.data?.message || err.message || 'Could not complete registration',
+        variant: 'destructive',
+      });
     }
   };
 
-  const inputCls = "w-full bg-[#ffffff] border-2 border-[#161713] rounded-xl px-4 py-2.5 text-xs text-[#161713] font-medium placeholder-[#a7a89e] focus:outline-none focus:border-[#ff5a24]";
+  const isOrg = role === 'organizer';
 
   return (
-    <div className="min-h-screen bg-[#161713] text-[#161713] font-['DM_Sans',sans-serif] flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-[#ff5a24] selection:text-[#161713] py-12">
-
-      {/* Brand Logo */}
-      <Link href="/" className="mb-6 flex items-center">
-        <span className="text-3xl font-black tracking-tight text-[#f4f1e9] uppercase">
-          vybetix<i className="not-italic text-[#ff5a24] ml-0.5">✳</i>
-        </span>
-      </Link>
-
-      {/* SUCCESS POPUP MODAL */}
-      {successData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#f4f1e9] border-2 border-[#161713] p-8 rounded-3xl max-w-sm w-full flex flex-col items-center text-center shadow-[8px_8px_0px_#ff5a24]">
-            <div className="h-16 w-16 bg-[#c4db59] border-2 border-[#161713] rounded-2xl flex items-center justify-center mb-4">
-              <Sparkles className="h-8 w-8 text-[#161713]" />
-            </div>
-            <h3 className="text-3xl font-black font-['Barlow_Condensed',Impact,sans-serif] uppercase text-[#161713] mb-2">
-              VERIFY YOUR EMAIL
-            </h3>
-            <p className="text-xs text-[#606257] mb-6">
-              A verification link was sent to <strong>{email}</strong>. Check your inbox to activate your account.
-            </p>
-            <div className="w-full bg-[#e7e4db] rounded-xl p-3 border border-[#d5d2c6] mb-4">
-              <span className="text-[10px] uppercase font-bold text-[#727365] block">Redirecting to login in</span>
-              <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black text-3xl text-[#161713]">{successData.countdown}s</span>
-            </div>
-            <Link
-              href="/login"
-              className="w-full py-3 rounded-xl bg-[#ff5a24] text-[#161713] font-black text-xs uppercase tracking-wider border-2 border-[#161713] shadow-[2px_2px_0px_#161713]"
-            >
-              GO TO LOGIN ↗
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Collectible Paper Card */}
-      <div className="w-full max-w-lg bg-[#f4f1e9] rounded-3xl border-2 border-[#161713] shadow-[8px_8px_0px_#161713] p-6 sm:p-8">
-
-        {/* Top Header */}
-        <div className="border-b-2 border-[#161713] pb-4 mb-6">
-          <div className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24]">
-            VYBETIX ✳ CREATE YOUR ACCOUNT
-          </div>
-          <h1 className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-4xl text-[#161713] tracking-tight leading-none mt-1">
-            BE THERE. GET YOUR PASS.
-          </h1>
-          <p className="text-xs text-[#606257] mt-1 font-medium">
-            Join the live culture network. Setup takes under 2 minutes.
-          </p>
-        </div>
-
-        {/* Role Selector Tabs */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {ROLE_OPTIONS.map((opt) => {
-            const Icon = opt.icon;
-            const active = role === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRole(opt.value as any)}
-                className={`p-3 rounded-2xl border-2 text-left transition-all ${active
-                    ? 'border-[#161713] bg-[#ffffff] shadow-[3px_3px_0px_#ff5a24]'
-                    : 'border-[#d5d2c6] bg-[#e7e4db] hover:border-[#161713]'
-                  }`}
-              >
-                <Icon className={`h-4 w-4 mb-1 ${active ? 'text-[#ff5a24]' : 'text-[#737568]'}`} />
-                <span className="font-['Barlow_Condensed',Impact,sans-serif] font-black uppercase text-sm block tracking-wide text-[#161713]">
-                  {opt.label}
-                </span>
-                <span className="text-[9px] text-[#727365] block leading-tight">{opt.sub}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Full Name</label>
-              <input type="text" placeholder="Tunde Alao" required value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Email Address</label>
-              <input type="email" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Phone Number (+234...)</label>
-              <input
-                type="tel"
-                placeholder="0803 123 4567"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Password</label>
-              <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputCls} pr-9`} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-0 h-full px-2.5 text-[#737568]">
-                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Confirm Password</label>
-              <div className="relative">
-                <input type={showConfirmPassword ? 'text' : 'password'} placeholder="••••••••" minLength={6} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`${inputCls} pr-9`} />
-                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-0 top-0 h-full px-2.5 text-[#737568]">
-                  {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Organizer Payout Details */}
-          {role === 'organizer' && (
-            <div className="p-4 rounded-2xl bg-[#e7e4db] border border-[#d5d2c6] space-y-3 mt-1">
-              <div className="text-[10px] font-black uppercase tracking-wider text-[#ff5a24] flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5" /> ORGANIZER PAYOUT DETAILS
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Business Name</label>
-                  <input type="text" placeholder="Vybe Media Productions" required value={businessName} onChange={(e) => setBusinessName(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Bank Name</label>
-                  {loadingBanks ? (
-                    <div className="text-xs text-[#737568] py-2">Loading banks...</div>
-                  ) : (
-                    <SearchableSelect
-                      options={banks.map(bank => ({ value: `${bank.code}:${bank.name}`, label: bank.name }))}
-                      value={bankName}
-                      onChange={setBankName}
-                      placeholder="Select Bank..."
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Account Number (10 digits)</label>
-                  <input type="text" maxLength={10} placeholder="0123456789" required value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-wider text-[#737568] block mb-1">Account Name</label>
-                  <input
-                    type="text"
-                    placeholder={resolvingAccount ? "Verifying..." : "Resolved automatically"}
-                    required
-                    readOnly
-                    value={accountName}
-                    className={`${inputCls} ${accountName ? 'bg-[#c4db59]/20 font-bold' : 'bg-[#e9e6dd]'}`}
-                  />
-                  {accountError && <span className="text-[9px] text-red-600 block mt-0.5">{accountError}</span>}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isRegistering}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-[#ff5a24] hover:bg-[#e04a1a] text-[#161713] text-xs font-black uppercase tracking-wider transition-all border-2 border-[#161713] shadow-[3px_3px_0px_#161713] mt-2"
+    <div className="min-h-screen bg-[#10100f] text-[#f1ede4] font-['DM_Sans',sans-serif] selection:bg-[#ff5a24] selection:text-[#10100f]">
+      <div className="wrap auth-wrap py-8">
+        <div className="auth-layout">
+          {/* Left Story Panel */}
+          <aside
+            className="auth-story"
+            style={{ backgroundImage: `url('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1200')` }}
           >
-            {isRegistering ? (
-              <Disc className="h-4 w-4 animate-spin" />
-            ) : (
-              <>CREATE ACCOUNT ↗</>
-            )}
-          </button>
+            <div className="auth-story-top">VYBETIX / YOUR NEXT CHAPTER</div>
+            <div className="auth-story-copy">
+              <span className="floweyebrow">THE GOOD PART STARTS HERE</span>
+              <h2>
+                {isOrg ? (
+                  <>
+                    YOU MAKE<br />
+                    THE NIGHT.<br />
+                    WE MAKE<br />
+                    THE WAY.
+                  </>
+                ) : (
+                  <>
+                    MORE NIGHTS.<br />
+                    MORE STORIES.<br />
+                    MORE YOU.
+                  </>
+                )}
+              </h2>
+              <p>
+                {isOrg
+                  ? 'From the first announcement to the final encore. Give your next event a home.'
+                  : 'Discover the music, the people, and the plans that make showing up worth it.'}
+              </p>
+            </div>
+            <div className="auth-story-foot">
+              <span>REAL LIFE. FULL VOLUME.</span>
+              <span>01 / THE NEXT SCENE</span>
+            </div>
+          </aside>
 
-          <div className="text-center pt-2">
-            <span className="text-xs text-[#606257]">Already have an account? </span>
-            <Link
-              href={`/login?redirect=${encodeURIComponent(redirectUrl)}`}
-              className="text-xs font-black text-[#161713] underline decoration-[#ff5a24] decoration-2 uppercase tracking-wide hover:text-[#ff5a24]"
-            >
-              Sign In ↗
+          {/* Right Form Panel */}
+          <section className="auth-panel">
+            <Link className="auth-back" href="/#explore">
+              ← Back to events
             </Link>
-          </div>
 
-        </form>
+            <div className="auth-heading">
+              <div className="floweyebrow">JOIN THE VYBE</div>
+              <h1 tabIndex={-1}>Create your account.</h1>
+              <p>
+                Already part of the crowd?{' '}
+                <Link href="/login">Sign in ↗</Link>
+              </p>
+            </div>
 
+            <form id="auth-form" autoComplete="off" onSubmit={handleSubmit}>
+              <div id="auth-fields">
+                {/* Role Switcher */}
+                <fieldset className="auth-role">
+                  <legend>I’m here to</legend>
+                  <label>
+                    <input
+                      type="radio"
+                      name="accountrole"
+                      value="buyer"
+                      checked={role === 'buyer'}
+                      onChange={() => setRole('buyer')}
+                    />
+                    <span>
+                      Discover events<small>Find your next great night</small>
+                    </span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="accountrole"
+                      value="organizer"
+                      checked={role === 'organizer'}
+                      onChange={() => setRole('organizer')}
+                    />
+                    <span>
+                      Organize events<small>Bring your people together</small>
+                    </span>
+                  </label>
+                </fieldset>
+
+                <label className="auth-label" htmlFor="auth-name">
+                  Full name
+                </label>
+                <input
+                  className="auth-input"
+                  id="auth-name"
+                  type="text"
+                  placeholder="Your Name"
+                  maxLength={60}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+
+                <label className="auth-label" htmlFor="auth-email">
+                  Email address
+                </label>
+                <input
+                  className="auth-input"
+                  id="auth-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+
+                <label className="auth-label" htmlFor="auth-phone">
+                  Phone number
+                </label>
+                <div className="flex items-center bg-[#25261f] border border-[#393a32] focus-within:border-[#ff5a24] rounded-md transition-colors">
+                  <span className="px-3 py-3 text-xs font-bold text-[#ff5a24] bg-[#1a1b15] border-r border-[#393a32] select-none tracking-wider rounded-l-md">
+                    +234
+                  </span>
+                  <input
+                    className="w-full bg-transparent text-[#f1ede4] px-3.5 py-3 text-sm outline-none placeholder-[#7a7265]"
+                    id="auth-phone"
+                    type="tel"
+                    maxLength={10}
+                    placeholder="801 234 5678"
+                    value={phone}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.startsWith('234')) val = val.slice(3);
+                      val = val.replace(/^0+/, '');
+                      setPhone(val);
+                    }}
+                  />
+                </div>
+
+                {isOrg && (
+                  <>
+                    <label className="auth-label" htmlFor="auth-business">
+                      Brand or Organization Name
+                    </label>
+                    <input
+                      className="auth-input"
+                      id="auth-business"
+                      type="text"
+                      placeholder="e.g. Mainland BlockParty"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                    />
+                  </>
+                )}
+
+                <label className="auth-label" htmlFor="auth-password">
+                  Password
+                </label>
+                <div className="auth-password">
+                  <input
+                    className="auth-input"
+                    id="auth-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="At least 8 characters"
+                    minLength={8}
+                    maxLength={100}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    aria-controls="auth-password"
+                    aria-label="Show password"
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                <label className="auth-label" htmlFor="auth-confirm">
+                  Confirm password
+                </label>
+                <div className="auth-password">
+                  <input
+                    className="auth-input"
+                    id="auth-confirm"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Repeat your password"
+                    minLength={8}
+                    maxLength={100}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    aria-controls="auth-confirm"
+                    aria-label="Show confirmation password"
+                    aria-pressed={showConfirmPassword}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                <label className="auth-consent">
+                  <input type="checkbox" required />
+                  <span>I agree to the Terms of Service &amp; Community Guidelines.</span>
+                </label>
+
+                <button
+                  className="btn auth-submit"
+                  type="submit"
+                  disabled={isRegistering || isSubmitting}
+                  style={{
+                    opacity: (isRegistering || isSubmitting) ? 0.75 : 1,
+                    cursor: (isRegistering || isSubmitting) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {(isRegistering || isSubmitting) ? (
+                    <span className="flex items-center justify-center gap-2 w-full">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Creating account...</span>
+                    </span>
+                  ) : (
+                    <>
+                      <span>Create account</span>{' '}
+                      <span className="arrow">↗</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            <div className="auth-bottom">
+              VYBETIX / STARRING YOU. DIRECTED BY THE NIGHT.
+            </div>
+          </section>
+        </div>
       </div>
-
     </div>
   );
 }
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#161713] flex flex-col items-center justify-center p-6 text-[#f4f1e9] font-['DM_Sans',sans-serif]">
-        <Disc className="h-10 w-10 text-[#ff5a24] animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#10100f] flex items-center justify-center p-6 text-[#f1ede4]">
+          <div className="flower" />
+        </div>
+      }
+    >
       <RegisterContent />
     </Suspense>
   );

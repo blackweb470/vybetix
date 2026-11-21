@@ -31,11 +31,19 @@ export function useAuth() {
     }) => {
       const res = await api.post('/api/auth/register', userData);
       // API returns { user, session } — extract token from session
-      const { user, session } = res.data.data as { user: UserProfile; session: { access_token: string } | null };
-      return { user, token: session?.access_token ?? '' };
+      const { user, session } = res.data.data as {
+        user: UserProfile;
+        session: { access_token: string; refresh_token?: string; expires_at?: number } | null;
+      };
+      return {
+        user,
+        token: session?.access_token ?? '',
+        refreshToken: session?.refresh_token,
+        expiresAt: session?.expires_at,
+      };
     },
     onSuccess: (data) => {
-      setAuth(data.user, data.token);
+      setAuth(data.user, data.token, data.refreshToken, data.expiresAt);
     }
   });
 
