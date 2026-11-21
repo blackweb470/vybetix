@@ -17,16 +17,19 @@ interface Bank {
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { register, isRegistering, isAuthenticated } = useAuth();
+  const { register, isRegistering, isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const redirectUrl = searchParams.get('redirect') || '';
   const roleParam = searchParams.get('role');
 
   useEffect(() => {
-    if (isAuthenticated) {
-      window.location.href = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+    if (isAuthenticated && user) {
+      let dest = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/tickets';
+      if (user.role === 'organizer' || user.role === 'admin') dest = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+      if (user.role === 'gate_staff') dest = '/scan';
+      window.location.href = dest;
     }
-  }, [isAuthenticated, redirectUrl]);
+  }, [isAuthenticated, user, redirectUrl]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -106,7 +109,9 @@ function RegisterContent() {
         variant: 'success',
       });
 
-      const target = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+      // Send each role to their appropriate home
+      let target = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/tickets';
+      if (role === 'organizer') target = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
       window.location.href = target;
     } catch (err: any) {
       setIsSubmitting(false);

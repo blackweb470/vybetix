@@ -8,10 +8,17 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../components/ui/toast';
 import Link from 'next/link';
 
+/** Returns the correct home route based on the user's role */
+function getRoleHome(role?: string): string {
+  if (role === 'organizer' || role === 'admin') return '/dashboard';
+  if (role === 'gate_staff') return '/scan';
+  return '/tickets'; // buyer default
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isLoggingIn, isAuthenticated } = useAuth();
+  const { login, isLoggingIn, isAuthenticated, user } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
@@ -22,10 +29,11 @@ function LoginContent() {
   const redirectUrl = searchParams.get('redirect') || '';
 
   React.useEffect(() => {
-    if (isAuthenticated) {
-      window.location.href = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+    if (isAuthenticated && user) {
+      const dest = redirectUrl && redirectUrl !== '/' ? redirectUrl : getRoleHome(user.role);
+      window.location.href = dest;
     }
-  }, [isAuthenticated, redirectUrl]);
+  }, [isAuthenticated, user, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +46,7 @@ function LoginContent() {
       const session = await login({ email, password });
       toast({ title: 'Welcome Back!', description: `Signed in as ${session.user.full_name}`, variant: 'success' });
 
-      const targetUrl = redirectUrl && redirectUrl !== '/' ? redirectUrl : '/dashboard';
+      const targetUrl = redirectUrl && redirectUrl !== '/' ? redirectUrl : getRoleHome(session.user.role);
       window.location.href = targetUrl;
     } catch (err: any) {
       setIsSubmitting(false);
